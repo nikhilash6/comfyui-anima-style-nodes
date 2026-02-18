@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-anima-style-nodes"
 description = "A quality-of-life node for ComfyUI that lets you browse 5000+ anime artists and styles, visually select tags (Danbooru-based), and autocomplete prompts with artistic styles for Anima-2b."
-version = "1.0.2"
+version = "1.0.3"
 license = {text = "MIT License"}
 dependencies = ["aiohttp"]
 authors = [{ name = "fulletlab" }]
@@ -12,4 +12,4 @@ Repository = "https://github.com/fulletlab/comfyui-anima-style-nodes"
 [tool.comfy]
 PublisherId = "fulletlab"
 DisplayName = "Anima Style Explorer"
-Icon = "https://raw.githubusercontent.com/fulletlab/comfyui-anima-style-nodes/main/assets/banner.jpg"
+Icon = "https://raw.githubusercontent.com/fulletlab/comfyui-anima-style-nodes/master/assets/banner.jpg"
