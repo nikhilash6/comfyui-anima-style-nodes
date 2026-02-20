@@ -13,22 +13,42 @@ _cache = []
 _download_status = {"active": False, "total": 0, "done": 0}
 _download_lock = threading.Lock()
 
+import time
+
 def download():
     global _cache
     try:
-        print(f" [AnimaStyleExplorer] Fetching artist data from {URL}...")
-        with urllib.request.urlopen(URL) as r:
+        url_busted = f"{URL}&t={int(time.time())}" if "?" in URL else f"{URL}?t={int(time.time())}"
+        print(f" [AnimaStyleExplorer] Fetching artist data from {url_busted}...")
+        with urllib.request.urlopen(url_busted) as r:
             c = r.read().decode('utf-8')
         m = re.search(r"const galleryData\s*=\s*(\[[\s\S]*?\]);", c)
         if not m: 
             print(" [AnimaStyleExplorer] FAILED: Could not find galleryData in JS file.")
             return False
+            
         items = json.loads(m.group(1))
-        processed = [{"id": str(i.get("id", "")), "tag": i.get("name", ""), "works": i.get("post_count", 0), "p": i.get("p", 1)} for i in items]
+        new_artists = [{"id": str(i.get("id", "")), "tag": i.get("name", ""), "works": i.get("post_count", 0), "p": i.get("p", 1)} for i in items]
+        
+        existing_artists = []
+        if os.path.exists(_DATA_PATH):
+            try:
+                with open(_DATA_PATH, "r", encoding="utf-8") as f:
+                    existing_artists = json.load(f)
+            except:
+                pass
+                
+        existing_ids = {a["id"] for a in new_artists} 
+        
+        for old in existing_artists:
+            if old["id"] not in existing_ids:
+                new_artists.append(old)
+                
         os.makedirs(os.path.dirname(_DATA_PATH), exist_ok=True)
         with open(_DATA_PATH, "w", encoding="utf-8") as f:
-            json.dump(processed, f, indent=2, ensure_ascii=False)
-        print(f" [AnimaStyleExplorer] SUCCESS: Saved {len(processed)} artists to {_DATA_PATH}.")
+            json.dump(new_artists, f, indent=2, ensure_ascii=False)
+            
+        print(f" [AnimaStyleExplorer] SUCCESS: Saved {len(new_artists)} artists to {_DATA_PATH}.")
         _cache = []
         return True
     except Exception as e:
@@ -44,7 +64,7 @@ def _download_one(item):
     url = f"https://thetacursed.github.io/Anima-Style-Explorer/images/{pid}/{id}.webp"
     path = os.path.join(_IMG_DIR, str(pid), f"{id}.webp")
     
-    if os.path.exists(path) and os.path.getsize(path) > 0:
+    if os.path.exists(path) and os.path.getsize(path) > 100:
         with _download_lock: _download_status["done"] += 1
         return
 
@@ -53,11 +73,12 @@ def _download_one(item):
             os.makedirs(os.path.dirname(path), exist_ok=True)
             with urllib.request.urlopen(url, timeout=15) as r:
                 data = r.read()
-                if len(data) > 0:
+                if len(data) > 100:
                     with open(path, "wb") as f:
                         f.write(data)
                     break
-        except:
+        except Exception as e:
+            print(f"Error downloading {id}: {e}")
             import time
             time.sleep(1)
     
@@ -83,15 +104,24 @@ def start_image_download():
 def get_download_status():
     return _download_status
 
+_cache_mtime = 0
+
 def load():
-    global _cache
-    if _cache: return _cache
-    if os.path.exists(_DATA_PATH):
-        try:
-            with open(_DATA_PATH, "r", encoding="utf-8") as f:
-                _cache = json.load(f)
-        except:
-            _cache = []
+    global _cache, _cache_mtime
+    if not os.path.exists(_DATA_PATH):
+        return []
+        
+    mtime = os.path.getmtime(_DATA_PATH)
+    if _cache and _cache_mtime == mtime:
+        return _cache
+        
+    try:
+        with open(_DATA_PATH, "r", encoding="utf-8") as f:
+            _cache = json.load(f)
+            _cache_mtime = mtime
+    except:
+        _cache = []
+    
     return _cache
 
 def all_tags():

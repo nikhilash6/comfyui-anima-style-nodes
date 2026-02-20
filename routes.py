@@ -23,6 +23,17 @@ def register(server):
         print(" [AnimaStyleExplorer] GET /anima/artists")
         return web.json_response(artist_data.load())
 
+    @server.instance.routes.get("/anima/custom_styles")
+    async def get_custom_styles(request):
+        try:
+            custom_path = os.path.join(os.path.dirname(__file__), "data", "custom_styles.json")
+            if os.path.exists(custom_path):
+                with open(custom_path, "r", encoding="utf-8") as f:
+                    return web.json_response(json.load(f))
+        except Exception as e:
+            print(f" [AnimaStyleExplorer] Error reading custom styles: {e}")
+        return web.json_response([])
+
     @server.instance.routes.get("/anima/random")
     async def get_random(request):
         artist = artist_data.pick_random()
