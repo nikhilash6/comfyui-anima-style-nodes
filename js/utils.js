@@ -1,16 +1,22 @@
 import { app } from "../../scripts/app.js";
-import { SITE_BASE } from "./config.js";
+import { CDN_BASE } from "./config.js";
 
 export function thumbUrl(artist, useCustom = false) {
-    const ts = Date.now();
+    if (!artist) return "";
+    const id = artist.id ?? "";
+    if (!id) return "";
+
     if (useCustom) {
-        return `/anima/images/custom/${artist.id}.webp?t=${ts}`;
+        return `/anima/images/custom/${id}.webp`;
     }
+
+    const page = artist.p ?? 1;
     const isOnline = localStorage.getItem("anima_online") === "true";
     if (!isOnline) {
-        return `/anima/images/${artist.p}/${artist.id}.webp?t=${ts}`;
+        return `/anima/images/${page}/${id}.webp`;
     }
-    return `${SITE_BASE}/images/${artist.p}/${artist.id}.webp`;
+
+    return `${CDN_BASE}/images/${page}/${id}.webp`;
 }
 
 export function getPromptWidget(node) {

@@ -2,6 +2,7 @@ import { api } from "../../scripts/api.js";
 import { SITE_BASE } from "./config.js";
 import { Data } from "./data.js";
 import { thumbUrl } from "./utils.js";
+import { Swipe } from "./swipe.js";
 
 let CUSTOM_STYLES = [];
 api.fetchApi("/anima/custom_styles")
@@ -11,7 +12,7 @@ api.fetchApi("/anima/custom_styles")
 
 export const Browser = (() => {
     let el, grid, countEl, onPick;
-    let filter = "", sort = "works", category = "all", _renderId = 0, _observer;
+    let filter = "", sort = "works", category = "all", _renderId = 0, _observer, _lastList = [], _lastHighlightedTag = "";
 
     function _build() {
         if (document.getElementById("anima-browser")) return;
@@ -27,6 +28,7 @@ export const Browser = (() => {
                     <button class="hdr-btn-txt" id="anima-cat-custom" style="opacity:0.5;">Custom Styles</button>
                     <select class="hdr-select" style="margin-left:8px">
                         <option value="works">Popularity</option>
+                        <option value="uniqueness">Uniqueness</option>
                         <option value="name">A – Z</option>
                     </select>
                     <div class="hdr-gap"></div>
@@ -52,6 +54,7 @@ export const Browser = (() => {
                         <span class="btn-lbl">Play</span>
                     </button>
                     <span class="anima-cycle-status" id="anima-cycle-status">stopped</span>
+                    <button class="anima-swipe-btn" id="anima-swipe-btn" title="Swipe through styles one by one">Swipe Mode</button>
                     <div class="cycle-search">
                         <i>@</i>
                         <input type="text" placeholder="Search artists..." autocomplete="off" spellcheck="false"/>
@@ -76,8 +79,12 @@ export const Browser = (() => {
         document.body.appendChild(el);
         grid = el.querySelector("#anima-grid");
         countEl = el.querySelector("#anima-count");
+        el.querySelector('.hdr-select option[value="name"]').textContent = "A - Z";
 
         const onlineToggle = el.querySelector("#anima-online-toggle");
+        if (localStorage.getItem("anima_online") === null) {
+            localStorage.setItem("anima_online", "true");
+        }
         onlineToggle.checked = localStorage.getItem("anima_online") === "true";
         onlineToggle.addEventListener("change", e => {
             localStorage.setItem("anima_online", e.target.checked);
@@ -87,6 +94,12 @@ export const Browser = (() => {
         const dlBtn = el.querySelector("#anima-dl-images");
         dlBtn.addEventListener("click", async () => {
             if (dlBtn.classList.contains("disabled")) return;
+            const ok = confirm(
+                "This will download preview images for up to 20,000 styles.\n\n" +
+                "It can take a long time and may use hundreds of MB.\n\n" +
+                "Continue?"
+            );
+            if (!ok) return;
             try {
                 const r = await api.fetchApi("/anima/download_images", { method: "POST" });
                 const res = await r.json();
@@ -105,7 +118,7 @@ export const Browser = (() => {
             } else {
                 dlBtn.textContent = "Download Complete!";
                 dlBtn.classList.remove("disabled");
-                setTimeout(() => { dlBtn.textContent = "Download Previews (~25MB)"; }, 3000);
+                setTimeout(() => { dlBtn.textContent = "Download Previews"; }, 3000);
                 _render();
             }
         }
@@ -163,6 +176,19 @@ export const Browser = (() => {
         });
         el.querySelector(".hdr-select").addEventListener("change", e => { sort = e.target.value; _render(); });
 
+        const swipeBtn = el.querySelector("#anima-swipe-btn");
+        swipeBtn?.addEventListener("click", async () => {
+            if (!_lastList.length) await _render();
+            if (!_lastList.length) return;
+
+            let startIndex = 0;
+            if (_lastHighlightedTag) {
+                const idx = _lastList.findIndex(a => a.tag === _lastHighlightedTag);
+                if (idx >= 0) startIndex = idx;
+            }
+            await _openSwipe(startIndex);
+        });
+
         el.querySelector("#anima-cat-all").addEventListener("click", e => {
             category = "all";
             e.target.style.opacity = "1";
@@ -185,20 +211,55 @@ export const Browser = (() => {
         }, { root: el.querySelector(".body"), rootMargin: "400px" });
     }
 
+    async function _openSwipe(startIndex) {
+        if (!_lastList.length) await _render();
+        if (!_lastList.length) return;
+
+        const list = _lastList;
+        const useCustom = category === "custom";
+        const boundedStart = Math.max(0, Math.min(Number(startIndex) || 0, list.length - 1));
+
+        Swipe.open({
+            list,
+            startIndex: boundedStart,
+            onApply: (artist) => { onPick?.(artist); highlight(artist.tag); },
+            getImageUrl: (artist) => thumbUrl(artist, useCustom),
+            getTitle: (artist) => String(artist?.tag || "").replace(/_/g, " "),
+        });
+    }
+
     async function _render() {
         const id = ++_renderId;
         grid.innerHTML = `<div class="anima-empty"><div class="anima-spinner"></div><span>Loading styles...</span></div>`;
-        let list = await Data.search(filter);
+        const full = await Data.all();
         if (id !== _renderId) return;
 
-        if (category === "custom") {
-            list = list.filter(a => CUSTOM_STYLES.includes(a.tag));
+        let list = full;
+        if (category === "custom") list = list.filter(a => CUSTOM_STYLES.includes(a.tag));
+
+        list = [...list];
+        if (sort === "name") {
+            list.sort((a, b) => (a.tag || "").localeCompare(b.tag || ""));
+        } else if (sort === "uniqueness") {
+            list.sort((a, b) => {
+                const u = (Number(b.uniqueness_score) || 0) - (Number(a.uniqueness_score) || 0);
+                if (u) return u;
+                const w = (Number(b.works) || 0) - (Number(a.works) || 0);
+                if (w) return w;
+                return (a.tag || "").localeCompare(b.tag || "");
+            });
+            list.forEach((a, i) => { a.uniquenessRank = i + 1; });
+        } else {
+            list.sort((a, b) => (Number(b.works) || 0) - (Number(a.works) || 0));
         }
 
-        if (sort === "name") list = [...list].sort((a, b) => a.tag.localeCompare(b.tag));
-        else list = [...list].sort((a, b) => (b.works || 0) - (a.works || 0));
+        if (filter) {
+            const lq = filter.toLowerCase();
+            list = list.filter(a => (a._s ?? String(a.tag || "").toLowerCase()).includes(lq));
+        }
 
         countEl.textContent = `${list.length} styles`;
+        _lastList = list;
 
         if (_observer) _observer.disconnect();
         grid.innerHTML = "";
@@ -233,26 +294,39 @@ export const Browser = (() => {
         card.dataset.tag = a.tag;
         const useCustom = category === "custom";
         const url = thumbUrl(a, useCustom);
+        const isUniq = sort === "uniqueness";
+        const rankHtml = isUniq && a.uniquenessRank
+            ? `<div class="anima-uniqueness-rank" title="Uniqueness score: ${Number(a.uniqueness_score || 0).toFixed(2)}">#${a.uniquenessRank}</div>`
+            : "";
         card.innerHTML = `
             <div class="anima-card-img" data-init="${(a.tag[0] || "?").toUpperCase()}">
                 <img loading="lazy" src="${url}" alt="${a.tag}"
                      onerror="this.style.display='none';this.parentElement.classList.add('no-img')"/>
+                ${rankHtml}
                 <div class="anima-card-overlay">
                     <button class="anima-card-pick">Apply</button>
                 </div>
             </div>
             <div class="anima-card-meta">
                 <span class="anima-card-tag" title="@${a.tag.replace(/_/g, " ")}">@${a.tag.replace(/_/g, " ")}</span>
-                ${a.works ? `<span class="anima-card-works">${Number(a.works).toLocaleString()} works</span>` : ""}
+                ${(!isUniq && a.works) ? `<span class="anima-card-works">${Number(a.works).toLocaleString()} works</span>` : ""}
             </div>
         `;
 
         card.addEventListener("mouseenter", () => {
             const img = card.querySelector("img");
             if (img && (!img.complete || img.naturalWidth === 0)) {
-                img.src = url + "?t=" + Date.now();
+                img.src = url + (url.includes("?") ? "&" : "?") + "t=" + Date.now();
             }
         }, { once: true });
+
+        card.addEventListener("mousedown", (e) => {
+            if (e.button !== 1) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const idx = _lastList.findIndex(x => x.tag === a.tag);
+            _openSwipe(idx >= 0 ? idx : 0);
+        });
 
         const pick = () => { onPick?.(a); highlight(a.tag); };
         card.querySelector(".anima-card-pick").addEventListener("click", e => { e.stopPropagation(); pick(); });
@@ -261,6 +335,7 @@ export const Browser = (() => {
     }
 
     function highlight(tag) {
+        _lastHighlightedTag = tag || "";
         grid.querySelectorAll(".anima-card.selected").forEach(c => c.classList.remove("selected"));
         const escaped = CSS.escape(tag);
         grid.querySelector(`.anima-card[data-tag="${escaped}"]`)?.classList.add("selected");
@@ -274,7 +349,10 @@ export const Browser = (() => {
         _render();
     }
 
-    function close() { el?.classList.add("hidden"); }
+    function close() {
+        Swipe.close();
+        el?.classList.add("hidden");
+    }
     function cycleBtn() { return document.getElementById("anima-cycle-btn"); }
     function cycleStatus() { return document.getElementById("anima-cycle-status"); }
 
