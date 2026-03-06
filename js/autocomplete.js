@@ -28,11 +28,11 @@ export const AC = (() => {
     async function _onInput(textarea) {
         ta = textarea;
         const before = textarea.value.slice(0, textarea.selectionStart);
-        const m = before.match(/@([\w_()\\ ]*)$/);
+        const m = before.match(/@([^,\n]*)$/);
         if (!m) { hide(); return; }
 
         atIdx = before.lastIndexOf("@");
-        const results = await Data.search(m[1]);
+        const results = await Data.search(m[1].trim());
         if (!results.length) { hide(); return; }
 
         const r = textarea.getBoundingClientRect();

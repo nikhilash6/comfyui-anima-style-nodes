@@ -6,7 +6,7 @@ import urllib.request
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
-URL = "https://thetacursed.github.io/Anima-Style-Explorer/app/data.js?v=9"
+URL = "https://thetacursed.github.io/Anima-Style-Explorer/app/data.js"
 _DATA_PATH = os.path.join(os.path.dirname(__file__), "data", "artists.json")
 _IMG_DIR = os.path.join(os.path.dirname(__file__), "js", "images")
 _cache = []
@@ -28,21 +28,16 @@ def download():
             return False
             
         items = json.loads(m.group(1))
-        new_artists = [{"id": str(i.get("id", "")), "tag": i.get("name", ""), "works": i.get("post_count", 0), "p": i.get("p", 1)} for i in items]
-        
-        existing_artists = []
-        if os.path.exists(_DATA_PATH):
-            try:
-                with open(_DATA_PATH, "r", encoding="utf-8") as f:
-                    existing_artists = json.load(f)
-            except:
-                pass
-                
-        existing_ids = {a["id"] for a in new_artists} 
-        
-        for old in existing_artists:
-            if old["id"] not in existing_ids:
-                new_artists.append(old)
+        new_artists = [
+            {
+                "id": str(i.get("id", "")),
+                "tag": i.get("name", ""),
+                "works": i.get("post_count", 0),
+                "p": i.get("p", 1),
+                "uniqueness_score": i.get("uniqueness_score", 0),
+            }
+            for i in items
+        ]
                 
         os.makedirs(os.path.dirname(_DATA_PATH), exist_ok=True)
         with open(_DATA_PATH, "w", encoding="utf-8") as f:
@@ -122,6 +117,17 @@ def load():
     except:
         _cache = []
     
+    # Backward-compat normalization for older datasets
+    for a in _cache:
+        if not isinstance(a, dict):
+            continue
+        if "id" in a:
+            a["id"] = str(a.get("id", ""))
+        a.setdefault("tag", a.get("name", ""))
+        a.setdefault("works", a.get("post_count", 0))
+        a.setdefault("p", 1)
+        a.setdefault("uniqueness_score", 0)
+
     return _cache
 
 def all_tags():
