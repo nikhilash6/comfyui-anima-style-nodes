@@ -7,3 +7,5 @@ Thumbs.db
 .env
 node.zip
 js/images/
+data/fullet_integration_token.json
+data/favorites.json
