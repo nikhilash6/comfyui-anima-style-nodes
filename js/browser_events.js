@@ -43,6 +43,12 @@ export function attachBrowserEvents({
     }
     keepSessionToggle.checked = localStorage.getItem("anima_keep_session") === "true";
 
+    const keyModal = el.querySelector("#anima-key-modal");
+    const keyPanel = el.querySelector("#anima-key-panel");
+    const keyInput = el.querySelector("#anima-key-input");
+    const keyClose = el.querySelector("#anima-key-close");
+    const keySave = el.querySelector("#anima-key-save");
+
     const ensureHeadersReady = async () => {
         const ok = await ensureLocalToken();
         if (!ok) {
@@ -71,6 +77,47 @@ export function attachBrowserEvents({
         rebuildFavoriteMap();
     };
 
+    const saveApiKey = async () => {
+        const headers = await ensureHeadersReady();
+        const apiKey = String(keyInput?.value || "").trim();
+        if (!apiKey) {
+            alert("Paste a Personal API Key first.");
+            return false;
+        }
+
+        const response = await api.fetchApi("/anima/fullet_api_key", {
+            method: "POST",
+            headers: {
+                ...headers,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                apiKey,
+                persistent: !!keepSessionToggle.checked,
+            }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            throw new Error(payload?.error || `Could not save API key (${response.status})`);
+        }
+        keyInput.value = "";
+        keyModal?.classList.add("hidden");
+        setRemoteFavoritesLoaded(false);
+        await refreshAuthStatus();
+        if (getCategory() === "favorites") await renderFavorites();
+        return true;
+    };
+
+    const openKeyModal = () => {
+        keyModal?.classList.remove("hidden");
+        setTimeout(() => keyInput?.focus(), 30);
+    };
+
+    const closeKeyModal = () => {
+        keyModal?.classList.add("hidden");
+        if (keyInput) keyInput.value = "";
+    };
+
     const uploadPicker = createUploadPicker({
         root: el,
         api,
@@ -81,6 +128,7 @@ export function attachBrowserEvents({
 
     const closeBrowser = () => {
         uploadPicker.close();
+        closeKeyModal();
         close();
     };
 
@@ -97,48 +145,34 @@ export function attachBrowserEvents({
     });
 
     el.querySelector("#anima-fullet-connect").addEventListener("click", async () => {
-        let connectUrl = "";
         try {
             await syncSessionMode(keepSessionToggle.checked);
-            const origin = encodeURIComponent(window.location.origin || "");
-            const r = await api.fetchApi(`/anima/fullet_auth_start?origin=${origin}`, { headers: await ensureHeadersReady() });
-            const payload = await r.json().catch(() => ({}));
-            if (!r.ok || !payload?.url) {
-                const message = payload?.error || `Could not start auth flow (${r.status})`;
-                alert(message);
-                return;
-            }
-            connectUrl = payload.url;
+            openKeyModal();
         } catch (err) {
-            alert(`Could not start auth flow: ${err?.message || "unknown error"}`);
-            return;
+            alert(err?.message || "Could not open API key modal.");
         }
+    });
 
-        window.open(connectUrl, "anima-fullet-auth", "width=620,height=760,resizable=yes,scrollbars=yes");
-        await refreshAuthStatus();
-        setRemoteFavoritesLoaded(false);
-        let ticks = 0;
-
-        const prevTimer = getAuthPollTimer();
-        if (prevTimer) clearInterval(prevTimer);
-
-        const timer = setInterval(async () => {
-            ticks += 1;
-            await refreshAuthStatus();
-            if (ticks > 120) {
-                clearInterval(timer);
-                setAuthPollTimer(null);
-            }
-        }, 1000);
-        setAuthPollTimer(timer);
+    keyClose?.addEventListener("click", closeKeyModal);
+    keyModal?.addEventListener("click", (event) => {
+        if (event.target === keyModal) closeKeyModal();
+    });
+    keyPanel?.addEventListener("click", (event) => event.stopPropagation());
+    keySave?.addEventListener("click", async () => {
+        try {
+            await saveApiKey();
+        } catch (err) {
+            alert(err?.message || "Could not save API key.");
+        }
     });
 
     el.querySelector("#anima-fullet-disconnect").addEventListener("click", async () => {
         uploadPicker.close();
+        closeKeyModal();
         try {
             await disconnectLocalSession();
         } catch (err) {
-            alert(err?.message || "Could not disconnect.");
+            alert(err?.message || "Could not remove API key.");
         }
         await refreshAuthStatus({ syncPending: false });
         if (getCategory() === "favorites") await renderFavorites();
@@ -147,7 +181,7 @@ export function attachBrowserEvents({
     const uploadBtn = el.querySelector("#anima-fullet-upload");
     uploadBtn.addEventListener("click", async () => {
         if (uploadBtn.classList.contains("disabled")) {
-            alert("Connect your Fullet account first.");
+            alert("Set your Fullet API key first.");
             return;
         }
 
@@ -200,6 +234,10 @@ export function attachBrowserEvents({
         if (e.key !== "Escape") return;
         if (uploadPicker.isOpen()) {
             uploadPicker.close();
+            return;
+        }
+        if (keyModal && !keyModal.classList.contains("hidden")) {
+            closeKeyModal();
             return;
         }
         closeBrowser();

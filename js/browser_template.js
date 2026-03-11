@@ -1,4 +1,4 @@
-export function getBrowserTemplate(siteBase) {
+﻿export function getBrowserTemplate(siteBase) {
     return `
             <div class="backdrop"></div>
             <div class="window">
@@ -13,9 +13,9 @@ export function getBrowserTemplate(siteBase) {
                         <option value="name">A - Z</option>
                     </select>
                     <div class="hdr-gap"></div>
-                    <span class="anima-fullet-auth" id="anima-fullet-auth">Not connected</span>
-                    <button class="hdr-btn-txt" id="anima-fullet-connect">Connect</button>
-                    <button class="hdr-btn-txt" id="anima-fullet-disconnect" style="display:none;">Disconnect</button>
+                    <span class="anima-fullet-auth" id="anima-fullet-auth">API key not set</span>
+                    <button class="hdr-btn-txt" id="anima-fullet-connect">Set API Key</button>
+                    <button class="hdr-btn-txt" id="anima-fullet-disconnect" style="display:none;">Remove Key</button>
                     <button class="hdr-btn-txt" id="anima-fullet-upload">Upload Image</button>
                     <div class="hdr-data-btns">
                         <div class="hdr-toggle-wrap" title="Show remote preview images from the internet">
@@ -30,7 +30,7 @@ export function getBrowserTemplate(siteBase) {
                             <div class="hdr-settings-menu">
                                 <label class="hdr-settings-option" for="anima-keep-session">
                                     <input type="checkbox" id="anima-keep-session" />
-                                    <span>Keep session active</span>
+                                    <span>Keep key after restart</span>
                                 </label>
                                 <button class="hdr-btn-txt hdr-settings-item" id="anima-update-styles">Update Styles</button>
                                 <button class="hdr-btn-txt hdr-settings-item" id="anima-dl-images">Download Previews</button>
@@ -58,6 +58,28 @@ export function getBrowserTemplate(siteBase) {
                 <div class="body">
                     <div class="anima-grid" id="anima-grid">
                         <div class="anima-empty"><div class="anima-spinner"></div><span>Loading styles...</span></div>
+                    </div>
+                </div>
+                <div class="anima-key-modal hidden" id="anima-key-modal">
+                    <div class="anima-key-panel" id="anima-key-panel">
+                        <div class="anima-key-header">
+                            <div class="anima-key-copy">
+                                <strong>Set Fullet API Key</strong>
+                                <span>Generate a Personal API Key in your Fullet account settings, then paste it here. The key stays on this machine and is only sent to Fullet.</span>
+                            </div>
+                            <button class="hdr-close" id="anima-key-close" title="Close">&#10005;</button>
+                        </div>
+                        <div class="anima-key-body">
+                            <a class="anima-key-link" href="https://fullet.lat/ajustes/anima-key" target="_blank" rel="noopener">Open Fullet API key settings</a>
+                            <label class="anima-key-field">
+                                <span>Personal API Key</span>
+                                <textarea id="anima-key-input" rows="3" placeholder="fanm_xxxxxxxx.xxxxxxxxxxxxxxxxxxxxx"></textarea>
+                            </label>
+                            <p class="anima-key-hint">Tip: leave "Keep key after restart" off if you only want it for this ComfyUI session.</p>
+                        </div>
+                        <div class="anima-key-actions">
+                            <button class="hdr-btn-txt" id="anima-key-save">Save Key</button>
+                        </div>
                     </div>
                 </div>
                 <div class="anima-upload-modal hidden" id="anima-upload-modal">
@@ -99,3 +121,4 @@ export function getBrowserTemplate(siteBase) {
             </div>
     `;
 }
+

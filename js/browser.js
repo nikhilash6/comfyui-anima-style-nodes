@@ -105,8 +105,8 @@ export const Browser = (() => {
         statusEl.textContent = unavailable
             ? "Auth unavailable"
             : connected
-                ? `Connected @${username || "user"}`
-                : "Not connected";
+                ? `API Key @${username || "user"}`
+                : "API key not set";
         statusEl.classList.toggle("connected", connected && !unavailable);
         connectBtn.style.display = connected ? "none" : "inline-flex";
         disconnectBtn.style.display = connected ? "inline-flex" : "none";
@@ -738,5 +738,6 @@ export const Browser = (() => {
 
     return { open, close, cycleBtn, cycleStatus, highlight };
 })();
+
 
 

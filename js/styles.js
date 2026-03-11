@@ -494,6 +494,109 @@ input:checked + .hdr-slider:before { transform:translateX(14px); background-colo
     cursor:wait;
 }
 `;
+
+s.textContent += `
+.anima-key-modal {
+    position:absolute;
+    inset:0;
+    z-index:31;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:18px;
+    background:rgba(5, 8, 14, 0.78);
+    backdrop-filter:blur(8px);
+}
+.anima-key-modal.hidden { display:none; }
+.anima-key-panel {
+    width:min(640px, 100%);
+    border-radius:14px;
+    border:1px solid #26314c;
+    background:linear-gradient(180deg, #0f1422 0%, #090d17 100%);
+    box-shadow:0 28px 70px rgba(0,0,0,.42);
+    overflow:hidden;
+}
+.anima-key-header {
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:14px;
+    padding:16px 18px 14px;
+    border-bottom:1px solid #192235;
+}
+.anima-key-copy { display:flex; flex-direction:column; gap:5px; }
+.anima-key-copy strong {
+    font-size:14px;
+    color:#edf2ff;
+    letter-spacing:.01em;
+}
+.anima-key-copy span {
+    font-size:11px;
+    line-height:1.55;
+    color:#9fb0d6;
+    max-width:520px;
+}
+.anima-key-body {
+    padding:16px 18px 8px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+}
+.anima-key-link {
+    display:inline-flex;
+    align-self:flex-start;
+    min-height:28px;
+    padding:6px 10px;
+    border-radius:8px;
+    border:1px solid #385083;
+    background:#17213a;
+    color:#d8e5ff;
+    text-decoration:none;
+    font-size:10.5px;
+    font-weight:600;
+}
+.anima-key-link:hover {
+    background:#203055;
+    border-color:#5775bf;
+    color:#ffffff;
+}
+.anima-key-field {
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+}
+.anima-key-field span {
+    color:#dce6ff;
+    font-size:11px;
+    font-weight:600;
+}
+.anima-key-field textarea {
+    width:100%;
+    resize:vertical;
+    min-height:84px;
+    padding:12px 14px;
+    border-radius:12px;
+    border:1px solid #24304a;
+    background:#0b1120;
+    color:#e8efff;
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;
+    line-height:1.5;
+    box-sizing:border-box;
+}
+.anima-key-hint {
+    margin:0;
+    color:#8ea1cf;
+    font-size:10.5px;
+    line-height:1.5;
+}
+.anima-key-actions {
+    display:flex;
+    justify-content:flex-end;
+    padding:0 18px 18px;
+}
+`;
     document.head.appendChild(s);
 }
+
 
