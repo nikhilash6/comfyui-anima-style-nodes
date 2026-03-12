@@ -31,7 +31,9 @@ import { showToast } from "./toast.js";
 export const Browser = (() => {
     let el, grid, countEl, onPick, activeNode = null;
     let filter = "", sort = "works", category = "all", _renderId = 0, _observer, _lastList = [], _lastHighlightedTag = "";
-    let _fulletPosts = [], _fulletLoaded = false;
+    const FULLET_PROMPTS_PAGE_SIZE = 48;
+    const FULLET_PROMPTS_SCROLL_MARGIN = 960;
+    let _fulletPosts = [], _fulletLoaded = false, _fulletNextOffset = 0, _fulletHasMore = true, _fulletLoading = false, _fulletLoadPromise = null, _fulletScrollHandler = null;
     let _localFavorites = [], _localFavoritesLoaded = false;
     let _remoteFavorites = [], _remoteFavoritesLoaded = false;
     let _favoriteMap = new Map();
@@ -124,6 +126,107 @@ export const Browser = (() => {
         el.querySelector("#anima-cat-favorites").style.opacity = category === "favorites" ? "1" : "0.5";
         const sortSelect = el.querySelector(".hdr-select");
         if (sortSelect) sortSelect.disabled = category !== "all";
+    }
+
+    function _detachFulletScrollHandler() {
+        const bodyEl = el?.querySelector(".body");
+        if (bodyEl && _fulletScrollHandler) {
+            bodyEl.removeEventListener("scroll", _fulletScrollHandler);
+        }
+        _fulletScrollHandler = null;
+    }
+
+    function _resetFulletPromptsFeed() {
+        _fulletPosts = [];
+        _fulletLoaded = false;
+        _fulletNextOffset = 0;
+        _fulletHasMore = true;
+        _fulletLoading = false;
+        _fulletLoadPromise = null;
+        _detachFulletScrollHandler();
+    }
+
+    function _updateFulletCount(visibleCount = 0) {
+        if (!countEl) return;
+        const suffix = _fulletHasMore ? "+" : "";
+        const loadingSuffix = _fulletLoading ? " loading..." : "";
+        countEl.textContent = `${visibleCount}${suffix} prompts${loadingSuffix}`;
+    }
+
+    function _dedupeFulletPosts(posts = []) {
+        const next = [];
+        const seen = new Set();
+        for (const post of posts) {
+            const id = String(post?.id || "").trim();
+            const key = id || `${post?.postUrl || ""}:${post?.artist || ""}`;
+            if (!key || seen.has(key)) continue;
+            seen.add(key);
+            next.push(post);
+        }
+        return next;
+    }
+
+    function _bindFulletInfiniteScroll(renderId) {
+        _detachFulletScrollHandler();
+        if (!_fulletHasMore || !el) return;
+
+        const bodyEl = el.querySelector(".body");
+        if (!bodyEl) return;
+
+        const loadMore = async () => {
+            if (category !== "fullet" || _fulletLoading || !_fulletHasMore) return;
+
+            const distanceToBottom = bodyEl.scrollHeight - (bodyEl.scrollTop + bodyEl.clientHeight);
+            if (distanceToBottom > FULLET_PROMPTS_SCROLL_MARGIN) return;
+
+            const prevVisibleCount = _lastList.length;
+            const prevScrollTop = bodyEl.scrollTop;
+
+            await _loadFulletPrompts();
+
+            if (category !== "fullet" || renderId !== _renderId) return;
+
+            const nextList = buildFulletList(_fulletPosts, filter);
+            const appendedItems = nextList
+                .slice(prevVisibleCount)
+                .map((item) => ({ ...item, kind: "fullet" }));
+
+            if (appendedItems.length) {
+                renderChunkedGrid({
+                    grid,
+                    observer: _observer,
+                    items: appendedItems,
+                    chunkSize: 40,
+                    minHeight: "420px",
+                    append: true,
+                    renderItem: (item) => _renderFulletCard(item),
+                });
+            }
+
+            _lastList = nextList.map((item) => ({ ...item, kind: "fullet" }));
+            _updateFulletCount(nextList.length);
+            bodyEl.scrollTop = prevScrollTop;
+
+            if (!_fulletHasMore) {
+                _detachFulletScrollHandler();
+                return;
+            }
+
+            if (bodyEl.scrollHeight <= bodyEl.clientHeight + FULLET_PROMPTS_SCROLL_MARGIN) {
+                window.requestAnimationFrame(() => {
+                    loadMore().catch(() => {});
+                });
+            }
+        };
+
+        _fulletScrollHandler = () => {
+            loadMore().catch(() => {});
+        };
+
+        bodyEl.addEventListener("scroll", _fulletScrollHandler, { passive: true });
+        window.requestAnimationFrame(() => {
+            loadMore().catch(() => {});
+        });
     }
 
     async function _fetchLocalApiToken() {
@@ -401,18 +504,59 @@ export const Browser = (() => {
     }
 
     async function _loadFulletPrompts(force = false) {
-        if (_fulletLoaded && !force) return _fulletPosts;
-        try {
-            const url = force ? "/anima/fullet_prompts?limit=48&offset=0&force=1" : "/anima/fullet_prompts?limit=48&offset=0";
-            const r = await api.fetchApi(url);
-            const data = await r.json();
-            _fulletPosts = Array.isArray(data.posts) ? data.posts : [];
-            _fulletLoaded = true;
-        } catch {
-            _fulletPosts = [];
-            _fulletLoaded = true;
+        if (_fulletLoadPromise) {
+            return await _fulletLoadPromise;
         }
-        return _fulletPosts;
+        if (_fulletLoaded && !_fulletHasMore && !force) return _fulletPosts;
+
+        const offset = _fulletLoaded && !force ? _fulletNextOffset : 0;
+        if (!_fulletLoaded || force) {
+            _fulletPosts = [];
+            _fulletNextOffset = 0;
+            _fulletHasMore = true;
+        }
+
+        _fulletLoading = true;
+        _updateFulletCount(_lastList.length || _fulletPosts.length);
+
+        _fulletLoadPromise = (async () => {
+            try {
+                const params = new URLSearchParams({
+                    limit: String(FULLET_PROMPTS_PAGE_SIZE),
+                    offset: String(offset),
+                });
+                if (force && offset === 0) {
+                    params.set("force", "1");
+                }
+
+                const r = await api.fetchApi(`/anima/fullet_prompts?${params.toString()}`);
+                const data = await r.json().catch(() => ({}));
+                const posts = Array.isArray(data.posts) ? data.posts : [];
+
+                _fulletPosts = _dedupeFulletPosts([
+                    ..._fulletPosts,
+                    ...posts,
+                ]);
+                _fulletLoaded = true;
+                _fulletNextOffset = offset + posts.length;
+                _fulletHasMore = posts.length === FULLET_PROMPTS_PAGE_SIZE;
+            } catch {
+                if (!_fulletLoaded) {
+                    _fulletPosts = [];
+                    _fulletLoaded = true;
+                }
+                _fulletHasMore = false;
+            } finally {
+                _fulletLoading = false;
+                _fulletLoadPromise = null;
+            }
+
+            return _fulletPosts;
+        })();
+
+        const result = await _fulletLoadPromise;
+        _updateFulletCount(_lastList.length || result.length);
+        return result;
     }
 
     async function _applyFullet(post, mode = "both", anchorEl = null) {
@@ -500,7 +644,11 @@ export const Browser = (() => {
             getPromptWidget,
             render: _render,
             setFulletLoaded: (value) => {
-                _fulletLoaded = !!value;
+                if (value) {
+                    _fulletLoaded = true;
+                    return;
+                }
+                _resetFulletPromptsFeed();
             },
             close,
             dataReset: () => Data.reset(),
@@ -567,6 +715,7 @@ export const Browser = (() => {
 
     async function _renderFullet() {
         const id = ++_renderId;
+        _detachFulletScrollHandler();
 
         if (!_remoteEnabled) {
             countEl.textContent = "internet required";
@@ -574,19 +723,21 @@ export const Browser = (() => {
             renderRemoteGate(grid, async () => {
                 _remoteEnabled = true;
                 _safeSessionSet("anima_remote_enabled", "true");
-                _fulletLoaded = false;
+                _resetFulletPromptsFeed();
                 _remoteFavoritesLoaded = false;
                 await _render();
             });
             return;
         }
 
-        grid.innerHTML = `<div class="anima-empty"><div class="anima-spinner"></div><span>Loading Fullet prompts...</span></div>`;
-        const full = await _loadFulletPrompts();
-        if (id !== _renderId) return;
+        if (!_fulletLoaded) {
+            grid.innerHTML = `<div class="anima-empty"><div class="anima-spinner"></div><span>Loading Fullet prompts...</span></div>`;
+            await _loadFulletPrompts();
+            if (id !== _renderId) return;
+        }
 
-        const list = buildFulletList(full, filter);
-        countEl.textContent = `${list.length} prompts`;
+        const list = buildFulletList(_fulletPosts, filter);
+        _updateFulletCount(list.length);
         _lastList = list.map((item) => ({ ...item, kind: "fullet" }));
 
         el.querySelector(".body").scrollTop = 0;
@@ -594,20 +745,26 @@ export const Browser = (() => {
         if (!list.length) {
             if (_observer) _observer.disconnect();
             grid.innerHTML = `<div class="anima-empty"><span>No prompts found.</span></div>`;
+            if (_fulletHasMore) {
+                _bindFulletInfiniteScroll(id);
+            }
             return;
         }
 
         renderChunkedGrid({
             grid,
             observer: _observer,
-            items: list,
+            items: _lastList,
             chunkSize: 40,
             minHeight: "420px",
-            renderItem: (item) => _renderFulletCard({ ...item, kind: "fullet" }),
+            renderItem: (item) => _renderFulletCard(item),
         });
+
+        _bindFulletInfiniteScroll(id);
     }
 
     async function _renderFavorites() {
+        _detachFulletScrollHandler();
         const id = ++_renderId;
         grid.innerHTML = `<div class="anima-empty"><div class="anima-spinner"></div><span>Loading favorites...</span></div>`;
 
@@ -657,6 +814,7 @@ export const Browser = (() => {
     }
 
     async function _render() {
+        _detachFulletScrollHandler();
         if (category === "fullet") return _renderFullet();
         if (category === "favorites") return _renderFavorites();
 
@@ -730,6 +888,7 @@ export const Browser = (() => {
 
     function close() {
         Swipe.close();
+        _detachFulletScrollHandler();
         el?.classList.add("hidden");
     }
 
@@ -738,6 +897,7 @@ export const Browser = (() => {
 
     return { open, close, cycleBtn, cycleStatus, highlight };
 })();
+
 
 
 

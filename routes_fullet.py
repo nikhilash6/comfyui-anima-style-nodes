@@ -361,7 +361,7 @@ def register_fullet_routes(server):
         except Exception:
             offset = 0
 
-        limit = max(1, min(limit, 96))
+        limit = max(1, min(limit, 48))
         offset = max(0, min(offset, 5000))
 
         auth = _get_fullet_auth_status()
@@ -599,3 +599,5 @@ def register_fullet_routes(server):
         except Exception as e:
             print(f" [AnimaStyleExplorer] Upload proxy error: {e}")
             return web.json_response({"error": "Upload failed"}, status=500)
+
+

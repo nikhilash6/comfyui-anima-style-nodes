@@ -22,9 +22,12 @@ export function renderChunkedGrid({
     chunkSize,
     minHeight,
     renderItem,
+    append = false,
 }) {
-    if (observer) observer.disconnect();
-    grid.innerHTML = "";
+    if (!append) {
+        if (observer) observer.disconnect();
+        grid.innerHTML = "";
+    }
 
     for (let i = 0; i < items.length; i += chunkSize) {
         const chunkItems = items.slice(i, i + chunkSize);
