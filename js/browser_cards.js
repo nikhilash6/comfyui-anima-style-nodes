@@ -12,7 +12,7 @@ export function createFulletCard({
 
     const artist = String(post?.artist || "").replace(/_/g, " ").trim();
     const user = String(post?.username || "").trim();
-    const imageUrl = String(post?.imageUrl || "").trim();
+    const imageUrl = String(post?.displayImageUrl || post?.imageUrl || "").trim();
     const postUrl = String(post?.postUrl || "").trim();
 
     card.innerHTML = `

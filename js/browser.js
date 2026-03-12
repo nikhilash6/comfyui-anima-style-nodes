@@ -1,5 +1,5 @@
 import { api } from "../../scripts/api.js";
-import { SITE_BASE } from "./config.js";
+import { FULLET_BASE, SITE_BASE } from "./config.js";
 import { Data } from "./data.js";
 import {
     favoriteKeyFromItem,
@@ -119,6 +119,23 @@ export const Browser = (() => {
         _favoriteMap = rebuildFavoriteMap(_localFavorites, _remoteFavorites);
     }
 
+    function _toFulletMediaUrl(value) {
+        const raw = String(value || "").trim();
+        if (!raw) return "";
+
+        try {
+            const parsed = new URL(raw, FULLET_BASE);
+            const pathname = String(parsed.pathname || "").toLowerCase();
+            if (!pathname.startsWith("/posts/") && !pathname.startsWith("/avatars/")) {
+                return raw;
+            }
+        } catch {
+            return raw;
+        }
+
+        return `${FULLET_BASE}/api/media?src=${encodeURIComponent(raw)}`;
+    }
+
     function _setCategoryTabs() {
         if (!el) return;
         el.querySelector("#anima-cat-all").style.opacity = category === "all" ? "1" : "0.5";
@@ -189,7 +206,7 @@ export const Browser = (() => {
             const nextList = buildFulletList(_fulletPosts, filter);
             const appendedItems = nextList
                 .slice(prevVisibleCount)
-                .map((item) => ({ ...item, kind: "fullet" }));
+                .map((item) => ({ ...item, kind: "fullet", displayImageUrl: _toFulletMediaUrl(item?.imageUrl) }));
 
             if (appendedItems.length) {
                 renderChunkedGrid({
@@ -203,7 +220,7 @@ export const Browser = (() => {
                 });
             }
 
-            _lastList = nextList.map((item) => ({ ...item, kind: "fullet" }));
+            _lastList = nextList.map((item) => ({ ...item, kind: "fullet", displayImageUrl: _toFulletMediaUrl(item?.imageUrl) }));
             _updateFulletCount(nextList.length);
             bodyEl.scrollTop = prevScrollTop;
 
@@ -700,7 +717,7 @@ export const Browser = (() => {
             },
             getImageUrl: (item) => {
                 if (isFulletLike(item)) {
-                    return String(item?.imageUrl || "");
+                    return String(item?.displayImageUrl || _toFulletMediaUrl(item?.imageUrl) || "");
                 }
                 return thumbUrl(item, false);
             },
@@ -738,7 +755,7 @@ export const Browser = (() => {
 
         const list = buildFulletList(_fulletPosts, filter);
         _updateFulletCount(list.length);
-        _lastList = list.map((item) => ({ ...item, kind: "fullet" }));
+        _lastList = list.map((item) => ({ ...item, kind: "fullet", displayImageUrl: _toFulletMediaUrl(item?.imageUrl) }));
 
         el.querySelector(".body").scrollTop = 0;
 
@@ -790,7 +807,9 @@ export const Browser = (() => {
         });
 
         countEl.textContent = `${list.length} favorites`;
-        _lastList = list;
+        _lastList = list.map((item) => (isFulletLike(item)
+            ? { ...item, displayImageUrl: _toFulletMediaUrl(item?.imageUrl) }
+            : item));
 
         el.querySelector(".body").scrollTop = 0;
 
@@ -825,7 +844,9 @@ export const Browser = (() => {
 
         const list = buildStyleList(full, { sort, filter });
         countEl.textContent = `${list.length} styles`;
-        _lastList = list;
+        _lastList = list.map((item) => (isFulletLike(item)
+            ? { ...item, displayImageUrl: _toFulletMediaUrl(item?.imageUrl) }
+            : item));
 
         el.querySelector(".body").scrollTop = 0;
 
