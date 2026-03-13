@@ -151,6 +151,7 @@ export function buildFavoritesList({
             prompt: String(post?.prompt || "").trim(),
             artist: String(post?.artist || "").trim(),
             imageUrl: String(post?.imageUrl || "").trim(),
+            thumbnailUrl: String(post?.thumbnailUrl || prev?.thumbnailUrl || "").trim(),
             createdAt: String(post?.createdAt || "").trim(),
             postUrl: String(post?.postUrl || "").trim(),
             key,

@@ -76,6 +76,7 @@ export function localFavoriteFromFullet(post) {
         prompt,
         artist,
         imageUrl: String(post?.imageUrl || "").trim(),
+        thumbnailUrl: String(post?.thumbnailUrl || "").trim(),
         createdAt: String(post?.createdAt || "").trim(),
         postUrl: String(post?.postUrl || "").trim(),
         addedAt: new Date().toISOString(),

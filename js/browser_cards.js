@@ -12,12 +12,12 @@ export function createFulletCard({
 
     const artist = String(post?.artist || "").replace(/_/g, " ").trim();
     const user = String(post?.username || "").trim();
-    const imageUrl = String(post?.displayImageUrl || post?.imageUrl || "").trim();
+    const imageUrl = String(post?.displayImageUrl || post?.thumbnailUrl || post?.imageUrl || "").trim();
     const postUrl = String(post?.postUrl || "").trim();
 
     card.innerHTML = `
         <div class="anima-fullet-img" data-init="${escapeHtml((artist[0] || "?").toUpperCase())}">
-            ${imageUrl ? `<img loading="lazy" src="${escapeHtml(imageUrl)}" alt="${escapeHtml(artist)}" onerror="this.style.display='none';this.parentElement.classList.add('no-img')"/>` : ""}
+            ${imageUrl ? `<img loading="lazy" decoding="async" src="${escapeHtml(imageUrl)}" alt="${escapeHtml(artist)}" onerror="this.style.display='none';this.parentElement.classList.add('no-img')"/>` : ""}
         </div>
         <div class="anima-fullet-meta">
             <span class="anima-fullet-artist" title="@${escapeHtml(artist)}">@${escapeHtml(artist)}</span>

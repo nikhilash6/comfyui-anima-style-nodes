@@ -136,6 +136,23 @@ export const Browser = (() => {
         return `${FULLET_BASE}/api/media?src=${encodeURIComponent(raw)}`;
     }
 
+    function _getFulletDisplayImageUrl(item) {
+        return _toFulletMediaUrl(item?.thumbnailUrl || item?.imageUrl);
+    }
+
+    function _getFulletFullImageUrl(item) {
+        return _toFulletMediaUrl(item?.imageUrl || item?.thumbnailUrl);
+    }
+
+    function _decorateFulletItem(item) {
+        return {
+            ...item,
+            kind: "fullet",
+            displayImageUrl: _getFulletDisplayImageUrl(item),
+            fullImageUrl: _getFulletFullImageUrl(item),
+        };
+    }
+
     function _setCategoryTabs() {
         if (!el) return;
         el.querySelector("#anima-cat-all").style.opacity = category === "all" ? "1" : "0.5";
@@ -206,7 +223,7 @@ export const Browser = (() => {
             const nextList = buildFulletList(_fulletPosts, filter);
             const appendedItems = nextList
                 .slice(prevVisibleCount)
-                .map((item) => ({ ...item, kind: "fullet", displayImageUrl: _toFulletMediaUrl(item?.imageUrl) }));
+                .map((item) => _decorateFulletItem(item));
 
             if (appendedItems.length) {
                 renderChunkedGrid({
@@ -220,7 +237,7 @@ export const Browser = (() => {
                 });
             }
 
-            _lastList = nextList.map((item) => ({ ...item, kind: "fullet", displayImageUrl: _toFulletMediaUrl(item?.imageUrl) }));
+            _lastList = nextList.map((item) => _decorateFulletItem(item));
             _updateFulletCount(nextList.length);
             bodyEl.scrollTop = prevScrollTop;
 
@@ -717,7 +734,7 @@ export const Browser = (() => {
             },
             getImageUrl: (item) => {
                 if (isFulletLike(item)) {
-                    return String(item?.displayImageUrl || _toFulletMediaUrl(item?.imageUrl) || "");
+                    return String(item?.fullImageUrl || _getFulletFullImageUrl(item) || "");
                 }
                 return thumbUrl(item, false);
             },
@@ -755,7 +772,7 @@ export const Browser = (() => {
 
         const list = buildFulletList(_fulletPosts, filter);
         _updateFulletCount(list.length);
-        _lastList = list.map((item) => ({ ...item, kind: "fullet", displayImageUrl: _toFulletMediaUrl(item?.imageUrl) }));
+        _lastList = list.map((item) => _decorateFulletItem(item));
 
         el.querySelector(".body").scrollTop = 0;
 
@@ -808,7 +825,7 @@ export const Browser = (() => {
 
         countEl.textContent = `${list.length} favorites`;
         _lastList = list.map((item) => (isFulletLike(item)
-            ? { ...item, displayImageUrl: _toFulletMediaUrl(item?.imageUrl) }
+            ? { ...item, displayImageUrl: _getFulletDisplayImageUrl(item), fullImageUrl: _getFulletFullImageUrl(item) }
             : item));
 
         el.querySelector(".body").scrollTop = 0;
@@ -845,7 +862,7 @@ export const Browser = (() => {
         const list = buildStyleList(full, { sort, filter });
         countEl.textContent = `${list.length} styles`;
         _lastList = list.map((item) => (isFulletLike(item)
-            ? { ...item, displayImageUrl: _toFulletMediaUrl(item?.imageUrl) }
+            ? { ...item, displayImageUrl: _getFulletDisplayImageUrl(item), fullImageUrl: _getFulletFullImageUrl(item) }
             : item));
 
         el.querySelector(".body").scrollTop = 0;
