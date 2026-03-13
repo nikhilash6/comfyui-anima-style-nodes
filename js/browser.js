@@ -839,7 +839,7 @@ export const Browser = (() => {
         renderChunkedGrid({
             grid,
             observer: _observer,
-            items: list,
+            items: _lastList,
             chunkSize: 60,
             minHeight: "420px",
             renderItem: (item) => {
