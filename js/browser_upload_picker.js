@@ -1,7 +1,9 @@
-import { escapeHtml } from "./browser_helpers.js";
+import { escapeHtml, normalizeTag } from "./browser_helpers.js";
+import { Data } from "./data.js";
 import { showToast } from "./toast.js";
 
 const MAX_UPLOAD_ITEMS = 36;
+const MAX_COLLAGE_ITEMS = 20;
 const MIN_VALID_TIMESTAMP = Date.UTC(2024, 0, 1);
 
 function loadBool(key, fallback = false) {
@@ -425,13 +427,165 @@ function buildUploadItems(historyPayload) {
         .slice(0, MAX_UPLOAD_ITEMS);
 }
 
-function renderCard(item, onUpload) {
+function buildArtistLookup(artists = []) {
+    const map = new Map();
+    artists.forEach((artist) => {
+        const key = normalizeTag(artist?.tag || "");
+        if (key) map.set(key, artist);
+    });
+    return map;
+}
+
+function describeStyleStats(artist) {
+    const works = Number(artist?.works || 0);
+    const uniqueness = Number(artist?.uniqueness_score || 0);
+
+    const footprint = works >= 3000
+        ? "large reference footprint"
+        : works >= 1000
+            ? "solid reference footprint"
+            : works > 0
+                ? "niche reference footprint"
+                : "unknown reference footprint";
+
+    const signature = uniqueness >= 10
+        ? "very distinct tag signal"
+        : uniqueness >= 5
+            ? "clear tag signal"
+            : uniqueness > 0
+                ? "subtle tag signal"
+                : "unscored tag signal";
+
+    return { footprint, signature, works, uniqueness };
+}
+
+function buildStyleResearch(items = [], artistLookup = new Map()) {
+    const seen = new Set();
+    const artists = [];
+
+    items.forEach((item, index) => {
+        const artistTag = String(item?.artist || "").trim();
+        const key = normalizeTag(artistTag);
+        const source = artistLookup.get(key) || {};
+        const stats = describeStyleStats(source);
+
+        artists.push({
+            imageIndex: index + 1,
+            artist: artistTag,
+            datasetId: String(source?.id || ""),
+            works: stats.works,
+            uniquenessScore: stats.uniqueness,
+            footprint: stats.footprint,
+            signature: stats.signature,
+            filename: String(item?.filename || ""),
+            promptPreview: String(item?.promptPreview || item?.prompt || "").slice(0, 320),
+            styleLabel: artistTag ? `@${artistTag}` : `Image ${index + 1}`,
+            styleNotes: `${stats.footprint}; ${stats.signature}.`,
+            comparisonNotes: "",
+        });
+        if (key) seen.add(key);
+    });
+
+    const names = Array.from(new Set(artists.map((item) => item.artist).filter(Boolean)));
+    const differentiators = artists.map((item) => {
+        const statsLabel = item.works
+            ? `${item.works} works, uniqueness ${item.uniquenessScore || 0}`
+            : "local output only";
+        return `@${item.artist}: ${item.footprint}, ${item.signature} (${statsLabel})`;
+    });
+
+    return {
+        type: "anima_style_collage",
+        version: 1,
+        generatedAt: new Date().toISOString(),
+        styleCount: seen.size || names.length,
+        imageCount: items.length,
+        title: names.length > 1
+            ? `Comparing ${names.map((name) => `@${name}`).join(", ")}`
+            : `Style study for @${names[0] || "unknown"}`,
+        summary: names.length > 1
+            ? `Anima style collage comparing ${names.map((name) => `@${name}`).join(", ")}.`
+            : `Anima style post for @${names[0] || "unknown"}.`,
+        conclusion: names.length > 1
+            ? "Use the per-image notes to compare where each style feels more attached to the scene, background, lighting, and character treatment."
+            : "Use the notes to judge how this style behaves across scene, background, lighting, and character treatment.",
+        basis: "Generated from local ComfyUI history, @artist tags, and the bundled Anima style dataset metrics.",
+        artists,
+        differentiators,
+    };
+}
+
+function buildCollagePrompt(items = [], research = {}) {
+    const first = items[0] || {};
+    const names = Array.from(new Set(items.map((item) => String(item.artist || "").trim()).filter(Boolean)));
+    const lead = names[0] ? `@${names[0]}` : String(first.prompt || first.promptPreview || "Anima style collage").trim();
+    const promptBody = stripLeadingArtist(first.promptPreview || first.prompt || "");
+    const comparison = names.length > 1 ? `style collage study comparing ${names.map((name) => `@${name}`).join(", ")}` : "style study";
+    return `${lead}, ${comparison}${promptBody ? `, base prompt: ${promptBody}` : ""}`.slice(0, 5000);
+}
+
+function buildCollageDescription(research = {}) {
+    const lines = Array.isArray(research.differentiators) ? research.differentiators : [];
+    if (!lines.length) return "";
+    return [
+        research.summary,
+        "Mini research notes:",
+        ...lines.map((line) => `- ${line}`),
+    ].filter(Boolean).join("\n").slice(0, 2000);
+}
+
+function buildCollageTags(items = []) {
+    const artistTags = Array.from(new Set(items
+        .map((item) => normalizeTag(item?.artist || "").replace(/_/g, "-").replace(/[^a-z0-9-]/g, ""))
+        .filter(Boolean)
+        .map((tag) => `style-${tag}`)));
+
+    return ["anima", "style-collage", "style-study", ...artistTags].slice(0, 16);
+}
+
+function buildImagesData(items = [], research = {}, preserveMetadata = true) {
+    const byArtist = new Map((research.artists || []).map((item) => [String(item.artist || ""), item]));
+    return items.map((item, index) => {
+        const styleStudy = byArtist.get(String(item.artist || "")) || {};
+        const statsLabel = styleStudy.works
+            ? `${styleStudy.works} works, uniqueness ${styleStudy.uniquenessScore || 0}`
+            : "local output only";
+        const styleLabel = styleStudy.styleLabel || (item.artist ? `@${item.artist}` : `Image ${index + 1}`);
+        const styleNotes = styleStudy.styleNotes || `${styleStudy.footprint || "local reference footprint"}; ${styleStudy.signature || "local style signal"}.`;
+        const comparisonNotes = styleStudy.comparisonNotes || `${styleLabel}: ${styleNotes} (${statsLabel})`;
+        return {
+            prompt: String(item.prompt || item.promptPreview || "").trim(),
+            negativePrompt: String(item.negativePrompt || "").trim(),
+            styleLabel,
+            styleNotes,
+            comparisonNotes,
+            settings: preserveMetadata
+                ? {
+                    ...(item.metadata || {}),
+                    styleStudy: {
+                        imageIndex: index + 1,
+                        artist: item.artist || "",
+                        works: styleStudy.works || 0,
+                        uniquenessScore: styleStudy.uniquenessScore || 0,
+                        footprint: styleStudy.footprint || "",
+                        signature: styleStudy.signature || "",
+                    },
+                }
+                : {},
+        };
+    });
+}
+
+function renderCard(item, { onUpload, isSelected, onToggleSelection }) {
     const card = document.createElement("div");
-    card.className = "anima-upload-card";
+    card.className = `anima-upload-card ${isSelected ? "selected" : ""}`;
     card.innerHTML = `
         <div class="anima-upload-thumb" data-init="${escapeHtml((item.artist[0] || "?").toUpperCase())}">
             <img loading="lazy" src="${escapeHtml(item.viewUrl)}" alt="${escapeHtml(item.artist)}" onerror="this.style.display='none';this.parentElement.classList.add('no-img')" />
             <span class="anima-upload-badge">@${escapeHtml(item.artist)}</span>
+            <button class="anima-upload-select" type="button" aria-pressed="${isSelected ? "true" : "false"}" title="Select for collage">
+                ${isSelected ? "Selected" : "Select"}
+            </button>
         </div>
         <div class="anima-upload-meta">
             <div class="anima-upload-row">
@@ -439,15 +593,21 @@ function renderCard(item, onUpload) {
                 <span class="anima-upload-time">${escapeHtml(formatTimeLabel(item.timestamp))}</span>
             </div>
             <p class="anima-upload-prompt">${escapeHtml(item.promptPreview || item.prompt || "Generated image")}</p>
-            <button class="anima-upload-action">Upload to Fullet</button>
+            <button class="anima-upload-action">Publish single image</button>
         </div>
     `;
 
     const thumb = card.querySelector(".anima-upload-thumb");
     const actionBtn = card.querySelector(".anima-upload-action");
+    const selectBtn = card.querySelector(".anima-upload-select");
+    selectBtn?.addEventListener("click", (event) => {
+        event.stopPropagation();
+        onToggleSelection?.(item);
+    });
+    card.addEventListener("dblclick", () => onToggleSelection?.(item));
     actionBtn?.addEventListener("click", async (event) => {
         event.stopPropagation();
-        await onUpload(item, thumb || card, actionBtn);
+        await onUpload([item], thumb || card, actionBtn);
     });
     return card;
 }
@@ -466,11 +626,16 @@ export function createUploadPicker({
     const grid = root.querySelector("#anima-upload-grid");
     const nsfwToggle = root.querySelector("#anima-upload-nsfw");
     const preserveToggle = root.querySelector("#anima-upload-preserve");
+    const selectionCountEl = root.querySelector("#anima-upload-selection");
+    const uploadSelectedBtn = root.querySelector("#anima-upload-selected");
+    const clearSelectionBtn = root.querySelector("#anima-upload-clear");
 
     const state = {
         items: [],
         loading: false,
         uploadingId: "",
+        selectedIds: new Set(),
+        artistLookup: new Map(),
         manualNsfw: loadBool("anima_upload_nsfw", false),
         preserveMetadata: loadBool("anima_upload_preserve_metadata", true),
     };
@@ -496,6 +661,43 @@ export function createUploadPicker({
         modal?.classList.add("hidden");
     }
 
+    function getSelectedItems() {
+        return state.items.filter((item) => state.selectedIds.has(item.id));
+    }
+
+    function syncSelectionControls() {
+        const count = state.selectedIds.size;
+        if (selectionCountEl) {
+            selectionCountEl.textContent = count === 1 ? "1 selected" : `${count} selected`;
+        }
+        if (uploadSelectedBtn) {
+            uploadSelectedBtn.disabled = count === 0 || state.loading || !!state.uploadingId;
+            uploadSelectedBtn.textContent = count > 1 ? "Publish Collage" : "Publish Selected";
+        }
+        if (clearSelectionBtn) {
+            clearSelectionBtn.disabled = count === 0 || !!state.uploadingId;
+        }
+    }
+
+    function toggleSelection(item) {
+        if (!item?.id || state.uploadingId) return;
+        if (state.selectedIds.has(item.id)) {
+            state.selectedIds.delete(item.id);
+        } else {
+            if (state.selectedIds.size >= MAX_COLLAGE_ITEMS) {
+                showToast(`Max ${MAX_COLLAGE_ITEMS} images per collage`, "error", 1800);
+                return;
+            }
+            state.selectedIds.add(item.id);
+        }
+        renderItems();
+    }
+
+    function clearSelection() {
+        state.selectedIds.clear();
+        renderItems();
+    }
+
     function setLoading(message = "Loading recent generations...") {
         if (!grid) return;
         grid.innerHTML = `
@@ -504,6 +706,7 @@ export function createUploadPicker({
                 <span>${escapeHtml(message)}</span>
             </div>
         `;
+        syncSelectionControls();
     }
 
     function setEmpty(message) {
@@ -514,6 +717,7 @@ export function createUploadPicker({
                 <span>${escapeHtml(message)}</span>
             </div>
         `;
+        syncSelectionControls();
     }
 
     function renderItems() {
@@ -526,9 +730,14 @@ export function createUploadPicker({
         grid.innerHTML = "";
         const frag = document.createDocumentFragment();
         state.items.forEach((item) => {
-            frag.appendChild(renderCard(item, uploadItem));
+            frag.appendChild(renderCard(item, {
+                onUpload: uploadItems,
+                isSelected: state.selectedIds.has(item.id),
+                onToggleSelection: toggleSelection,
+            }));
         });
         grid.appendChild(frag);
+        syncSelectionControls();
     }
 
     async function loadHistory() {
@@ -548,21 +757,33 @@ export function createUploadPicker({
 
             const payload = await response.json().catch(() => ({}));
             state.items = buildUploadItems(payload);
+            const availableIds = new Set(state.items.map((item) => item.id));
+            state.selectedIds = new Set([...state.selectedIds].filter((id) => availableIds.has(id)));
+            const artists = await Data.all().catch(() => []);
+            state.artistLookup = buildArtistLookup(Array.isArray(artists) ? artists : []);
             renderItems();
         } catch (error) {
             setEmpty(error?.message || "Could not load local generation history.");
         } finally {
             state.loading = false;
+            syncSelectionControls();
         }
     }
 
-    async function uploadItem(item, anchorEl, buttonEl) {
-        if (!item || state.uploadingId) return;
-        state.uploadingId = item.id;
+    async function uploadItems(items, anchorEl, buttonEl) {
+        const itemsToUpload = Array.isArray(items) ? items.filter(Boolean) : [];
+        if (!itemsToUpload.length || state.uploadingId) return;
+        if (itemsToUpload.length > MAX_COLLAGE_ITEMS) {
+            showToast(`Max ${MAX_COLLAGE_ITEMS} images per collage`, "error", 1800, { anchor: anchorEl });
+            return;
+        }
+        state.uploadingId = itemsToUpload.length === 1 ? itemsToUpload[0].id : "collage";
+        syncSelectionControls();
 
-        const prevLabel = buttonEl?.textContent || "Upload to Fullet";
+        const isCollage = itemsToUpload.length > 1;
+        const prevLabel = buttonEl?.textContent || (isCollage ? "Publish Collage" : "Publish single image");
         if (buttonEl) {
-            buttonEl.textContent = "Uploading...";
+            buttonEl.textContent = isCollage ? "Publishing collage..." : "Uploading...";
             buttonEl.disabled = true;
         }
 
@@ -572,21 +793,37 @@ export function createUploadPicker({
                 throw new Error("Local security token not available. Reopen the browser and try again.");
             }
 
-            const viewResponse = await api.fetchApi(item.viewUrl);
-            if (!viewResponse.ok) {
-                throw new Error(`Could not open local image (${viewResponse.status})`);
+            const research = buildStyleResearch(itemsToUpload, state.artistLookup);
+            const prompt = isCollage
+                ? buildCollagePrompt(itemsToUpload, research)
+                : String(itemsToUpload[0].prompt || itemsToUpload[0].promptPreview || "").trim();
+            const negativePrompt = String(itemsToUpload[0].negativePrompt || "").trim();
+            const imagesData = buildImagesData(itemsToUpload, research, state.preserveMetadata);
+            const form = new FormData();
+
+            for (const item of itemsToUpload) {
+                const viewResponse = await api.fetchApi(item.viewUrl);
+                if (!viewResponse.ok) {
+                    throw new Error(`Could not open local image (${viewResponse.status})`);
+                }
+                const blob = await viewResponse.blob();
+                form.append("file", blob, item.filename || "generation.png");
             }
 
-            const blob = await viewResponse.blob();
-            const form = new FormData();
-            form.append("file", blob, item.filename || "generation.png");
-            form.append("prompt", String(item.prompt || item.promptPreview || "").trim());
-            form.append("negativePrompt", String(item.negativePrompt || "").trim());
+            form.append("prompt", prompt);
+            form.append("negativePrompt", negativePrompt);
             form.append("model", "anima");
+            form.append("category", "anime");
             form.append("manualNsfw", state.manualNsfw ? "true" : "false");
             form.append("preserveMetadata", state.preserveMetadata ? "true" : "false");
-            if (state.preserveMetadata && item.metadata && Object.keys(item.metadata).length) {
-                form.append("settings", JSON.stringify(item.metadata));
+            form.append("imagesData", JSON.stringify(imagesData));
+
+            if (isCollage) {
+                form.append("description", buildCollageDescription(research));
+                form.append("tags", JSON.stringify(buildCollageTags(itemsToUpload)));
+                form.append("styleResearch", JSON.stringify(research));
+            } else if (state.preserveMetadata && itemsToUpload[0].metadata && Object.keys(itemsToUpload[0].metadata).length) {
+                form.append("settings", JSON.stringify(itemsToUpload[0].metadata));
             }
 
             const response = await api.fetchApi("/anima/fullet_upload", {
@@ -603,7 +840,8 @@ export function createUploadPicker({
                 throw new Error(data?.error || `Upload failed (${response.status})`);
             }
 
-            showToast("Uploaded to Fullet", "success", 1800, { anchor: anchorEl });
+            showToast(isCollage ? "Collage published to Fullet" : "Uploaded to Fullet", "success", 1800, { anchor: anchorEl });
+            state.selectedIds.clear();
             close();
             await refreshAuthStatus({ syncPending: false });
 
@@ -618,6 +856,7 @@ export function createUploadPicker({
                 buttonEl.textContent = prevLabel;
                 buttonEl.disabled = false;
             }
+            syncSelectionControls();
         }
     }
 
@@ -631,6 +870,11 @@ export function createUploadPicker({
     refreshBtn?.addEventListener("click", async () => {
         await loadHistory();
     });
+    uploadSelectedBtn?.addEventListener("click", async () => {
+        const selected = getSelectedItems();
+        await uploadItems(selected, uploadSelectedBtn, uploadSelectedBtn);
+    });
+    clearSelectionBtn?.addEventListener("click", clearSelection);
     modal?.addEventListener("click", (event) => {
         if (event.target === modal) close();
     });

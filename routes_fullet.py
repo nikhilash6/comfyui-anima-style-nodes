@@ -13,13 +13,13 @@ from aiohttp import ClientSession, ClientTimeout, FormData, web
 
 from .routes_favorites import normalize_fullet_post
 
-ALLOWED_UPLOAD_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
-ALLOWED_UPLOAD_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+ALLOWED_UPLOAD_TYPES = {"image/png", "image/jpeg", "image/webp"}
+ALLOWED_UPLOAD_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
+MAX_FULLET_UPLOAD_ITEMS = 20
 _IMAGE_MAGIC = {
     b"\x89PNG": "image/png",
     b"\xff\xd8\xff": "image/jpeg",
     b"RIFF": "image/webp",
-    b"GIF8": "image/gif",
 }
 _POST_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,128}$")
 
@@ -520,69 +520,109 @@ def register_fullet_routes(server):
             return web.json_response({"error": "Not connected to Fullet"}, status=401)
 
         reader = await request.multipart()
-        file_bytes = None
-        filename = "upload.png"
-        content_type = "image/png"
+        upload_files = []
         prompt = ""
         negative_prompt = ""
         model = "anima"
+        category = ""
+        description = ""
         manual_nsfw = ""
         preserve_metadata = ""
         settings_json = ""
+        images_data_json = ""
+        tags_json = ""
+        style_research_json = ""
 
         async for part in reader:
-            if part.name == "file":
+            if part.name in ("file", "files"):
                 file_bytes = await part.read(decode=False)
-                filename = part.filename or filename
-                content_type = part.headers.get("Content-Type", content_type)
+                upload_files.append({
+                    "bytes": file_bytes,
+                    "filename": part.filename or f"upload-{len(upload_files) + 1}.png",
+                    "content_type": part.headers.get("Content-Type", "image/png"),
+                })
             elif part.name == "prompt":
                 prompt = (await part.text()).strip()
             elif part.name == "negativePrompt":
                 negative_prompt = (await part.text()).strip()
             elif part.name == "model":
                 model = (await part.text()).strip() or "anima"
+            elif part.name == "category":
+                category = (await part.text()).strip()
+            elif part.name == "description":
+                description = (await part.text()).strip()
             elif part.name == "manualNsfw":
                 manual_nsfw = (await part.text()).strip()
             elif part.name == "preserveMetadata":
                 preserve_metadata = (await part.text()).strip()
             elif part.name == "settings":
                 settings_json = (await part.text()).strip()
+            elif part.name == "imagesData":
+                images_data_json = (await part.text()).strip()
+            elif part.name == "tags":
+                tags_json = (await part.text()).strip()
+            elif part.name == "styleResearch":
+                style_research_json = (await part.text()).strip()
 
-        if not file_bytes:
+        if not upload_files:
             return web.json_response({"error": "No file provided"}, status=400)
+        if len(upload_files) > MAX_FULLET_UPLOAD_ITEMS:
+            return web.json_response({"error": f"Too many images selected (max {MAX_FULLET_UPLOAD_ITEMS})"}, status=400)
         if not prompt:
             return web.json_response({"error": "Prompt is required"}, status=400)
-        if len(file_bytes) > (12 * 1024 * 1024):
-            return web.json_response({"error": "Image too large"}, status=400)
-        if content_type not in ALLOWED_UPLOAD_TYPES:
-            return web.json_response({"error": f"Unsupported file type: {content_type}"}, status=400)
 
-        ext = os.path.splitext(filename)[1].lower() if filename else ""
-        if ext and ext not in ALLOWED_UPLOAD_EXTENSIONS:
-            return web.json_response({"error": f"Unsupported file extension: {ext}"}, status=400)
+        for index, item in enumerate(upload_files, start=1):
+            file_bytes = item.get("bytes") or b""
+            filename = item.get("filename") or f"upload-{index}.png"
+            content_type = item.get("content_type") or "image/png"
 
-        detected = None
-        for magic, mime in _IMAGE_MAGIC.items():
-            if file_bytes[:len(magic)] == magic:
-                detected = mime
-                break
-        if not detected:
-            return web.json_response({"error": "File does not appear to be a valid image"}, status=400)
+            if len(file_bytes) > (12 * 1024 * 1024):
+                return web.json_response({"error": f"Image {index} is too large"}, status=400)
+            if content_type not in ALLOWED_UPLOAD_TYPES:
+                return web.json_response({"error": f"Unsupported file type on image {index}: {content_type}"}, status=400)
+
+            ext = os.path.splitext(filename)[1].lower() if filename else ""
+            if ext and ext not in ALLOWED_UPLOAD_EXTENSIONS:
+                return web.json_response({"error": f"Unsupported file extension on image {index}: {ext}"}, status=400)
+
+            detected = None
+            for magic, mime in _IMAGE_MAGIC.items():
+                if file_bytes[:len(magic)] == magic:
+                    detected = mime
+                    break
+            if not detected:
+                return web.json_response({"error": f"Image {index} does not appear to be valid"}, status=400)
 
         form = FormData()
-        form.add_field("file", file_bytes, filename=filename, content_type=content_type)
+        for item in upload_files:
+            form.add_field(
+                "file",
+                item["bytes"],
+                filename=item.get("filename") or "generation.png",
+                content_type=item.get("content_type") or "image/png",
+            )
         form.add_field("prompt", prompt)
         form.add_field("negativePrompt", negative_prompt)
         form.add_field("model", model)
+        if category:
+            form.add_field("category", category)
+        if description:
+            form.add_field("description", description)
         if manual_nsfw:
             form.add_field("manualNsfw", manual_nsfw)
         if preserve_metadata:
             form.add_field("preserveMetadata", preserve_metadata)
         if settings_json:
             form.add_field("settings", settings_json)
+        if images_data_json:
+            form.add_field("imagesData", images_data_json)
+        if tags_json:
+            form.add_field("tags", tags_json)
+        if style_research_json:
+            form.add_field("styleResearch", style_research_json)
 
         url = f"{FULLET_BASE_URL}/api/integrations/anima/upload"
-        timeout = ClientTimeout(total=45)
+        timeout = ClientTimeout(total=120)
         try:
             async with ClientSession(timeout=timeout) as session:
                 async with session.post(url, data=form, headers=headers) as resp:

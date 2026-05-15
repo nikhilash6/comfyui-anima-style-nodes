@@ -78,6 +78,14 @@ Great for discovering new styles hands-free.
 
 The node includes a built-in database of 5,000+ artists. You can manually refresh this data by clicking the **Update Styles** button on the node or the refresh icon in the Browser. This avoids automatic downloads on startup.
 
+### Publish Style Collages to Fullet
+
+Connect a Fullet Personal API Key, open **Publish Collage**, and choose one or more recent local generations that include an `@artist` tag.
+
+* one selected image publishes as a normal Anima post
+* multiple selected images publish as one collage-style post
+* collage posts include per-image prompt metadata plus a small style comparison based on the selected `@artist` tags and the bundled Anima dataset metrics
+
 ---
 
 ## Credits

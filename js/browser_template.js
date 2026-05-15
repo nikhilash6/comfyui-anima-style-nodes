@@ -16,7 +16,7 @@
                     <span class="anima-fullet-auth" id="anima-fullet-auth">API key not set</span>
                     <button class="hdr-btn-txt" id="anima-fullet-connect">Set API Key</button>
                     <button class="hdr-btn-txt" id="anima-fullet-disconnect" style="display:none;">Remove Key</button>
-                    <button class="hdr-btn-txt" id="anima-fullet-upload">Upload Image</button>
+                    <button class="hdr-btn-txt" id="anima-fullet-upload">Publish Collage</button>
                     <div class="hdr-data-btns">
                         <div class="hdr-toggle-wrap" title="Show remote preview images from the internet">
                             <span class="hdr-toggle-label">Remote Images</span>
@@ -87,9 +87,12 @@
                         <div class="anima-upload-header">
                             <div class="anima-upload-copy">
                                 <strong>Recent Anima Generations</strong>
-                                <span>Pick one of your latest local generations tagged with an @artist and publish it directly to Fullet.</span>
+                                <span>Select one image for a normal post, or select several @artist outputs to publish a style collage with comparison notes.</span>
                             </div>
                             <div class="anima-upload-tools">
+                                <span class="anima-upload-selection" id="anima-upload-selection">0 selected</span>
+                                <button class="hdr-btn-txt" id="anima-upload-selected" disabled>Publish Selected</button>
+                                <button class="hdr-btn-txt" id="anima-upload-clear" disabled>Clear</button>
                                 <button class="hdr-btn-txt" id="anima-upload-refresh">Refresh</button>
                                 <button class="hdr-close" id="anima-upload-close" title="Close">&#10005;</button>
                             </div>

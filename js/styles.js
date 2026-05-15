@@ -306,7 +306,18 @@ input:checked + .hdr-slider:before { transform:translateX(14px); background-colo
     line-height:1.5;
     color:#9fb0d6;
 }
-.anima-upload-tools { display:flex; align-items:center; gap:8px; }
+.anima-upload-tools { display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
+.anima-upload-selection {
+    min-width:72px;
+    padding:6px 8px;
+    border-radius:999px;
+    border:1px solid #263650;
+    background:#0c1220;
+    color:#9fb0d6;
+    font-size:10px;
+    text-align:center;
+    white-space:nowrap;
+}
 .anima-upload-options {
     display:grid;
     grid-template-columns:repeat(2, minmax(0, 1fr));
@@ -395,6 +406,10 @@ input:checked + .hdr-slider:before { transform:translateX(14px); background-colo
     border-color:#3e5384;
     box-shadow:0 16px 34px rgba(0,0,0,.32);
 }
+.anima-upload-card.selected {
+    border-color:#79a0ff;
+    box-shadow:0 0 0 2px rgba(121,160,255,.18), 0 16px 34px rgba(0,0,0,.32);
+}
 .anima-upload-thumb {
     position:relative;
     aspect-ratio:1.08;
@@ -434,6 +449,27 @@ input:checked + .hdr-slider:before { transform:translateX(14px); background-colo
     overflow:hidden;
     text-overflow:ellipsis;
     backdrop-filter:blur(8px);
+}
+.anima-upload-select {
+    position:absolute;
+    right:10px;
+    top:10px;
+    max-width:calc(100% - 20px);
+    min-height:24px;
+    padding:4px 8px;
+    border-radius:999px;
+    border:1px solid #31466f;
+    background:rgba(9, 14, 24, 0.84);
+    color:#dfeaff;
+    font-size:10px;
+    font-weight:700;
+    cursor:pointer;
+    backdrop-filter:blur(8px);
+}
+.anima-upload-select[aria-pressed="true"] {
+    border-color:#89a9ff;
+    background:rgba(40, 68, 130, 0.9);
+    color:#ffffff;
 }
 .anima-upload-meta {
     display:flex;
