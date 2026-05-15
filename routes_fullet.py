@@ -29,6 +29,14 @@ FULLET_PROMPTS_CACHE_TTL = int(os.getenv("ANIMA_FULLET_PROMPTS_CACHE_TTL", "120"
 FULLET_FAVORITES_CACHE_TTL = int(os.getenv("ANIMA_FULLET_FAVORITES_CACHE_TTL", "90"))
 FULLET_TOKEN_FILE = os.path.join(BASE_DIR, "data", "fullet_integration_token.json")
 FULLET_LOCAL_TOKEN_HEADER = "x-anima-local-token"
+FULLET_CLIENT_HEADERS = {
+    "Accept": "application/json",
+    "User-Agent": "ComfyUI-AnimaStyleExplorer/1.0 (+https://fullet.lat)",
+}
+FULLET_CLOUDFLARE_ERROR = (
+    "Cloudflare is challenging the Fullet API. Add a Skip/Allow rule for "
+    "/api/integrations/anima* and /api/media* so ComfyUI can load prompts."
+)
 
 _fullet_lock = threading.Lock()
 _fullet_auth = {
@@ -48,6 +56,29 @@ _fullet_favorites_cache = {
     "payload": {"posts": [], "source": "fullet", "connected": False},
 }
 _local_api_token = base64.urlsafe_b64encode(os.urandom(24)).decode("utf-8").rstrip("=")
+
+
+def _fullet_headers(extra=None):
+    headers = dict(FULLET_CLIENT_HEADERS)
+    if isinstance(extra, dict):
+        headers.update(extra)
+    return headers
+
+
+def _is_cloudflare_challenge(resp, text=""):
+    mitigated = str(resp.headers.get("cf-mitigated") or "").lower()
+    if mitigated == "challenge":
+        return True
+
+    lower_text = str(text or "").lower()
+    return (
+        resp.status in (403, 503)
+        and (
+            "just a moment" in lower_text
+            or "enable javascript and cookies" in lower_text
+            or "/cdn-cgi/challenge-platform/" in lower_text
+        )
+    )
 
 
 def _safe_json_load(path):
@@ -192,12 +223,15 @@ async def _fetch_fullet_me(api_key):
     timeout = ClientTimeout(total=12)
     try:
         async with ClientSession(timeout=timeout) as session:
-            async with session.get(url, headers={"Authorization": f"Bearer {raw}"}) as resp:
+            async with session.get(url, headers=_fullet_headers({"Authorization": f"Bearer {raw}"})) as resp:
                 text = await resp.text()
                 try:
                     data = json.loads(text) if text else {}
                 except Exception:
                     data = {}
+
+                if _is_cloudflare_challenge(resp, text):
+                    return {"ok": False, "error": FULLET_CLOUDFLARE_ERROR}
 
                 if resp.status >= 400:
                     return {"ok": False, "error": str(data.get("error") or f"Validation failed ({resp.status})")}
@@ -217,13 +251,21 @@ async def _fetch_fullet_prompts(limit, offset):
 
     try:
         async with ClientSession(timeout=timeout) as session:
-            async with session.get(url) as resp:
+            async with session.get(url, headers=_fullet_headers()) as resp:
                 text = await resp.text()
                 payload = {}
                 try:
                     payload = json.loads(text) if text else {}
                 except Exception:
                     payload = {}
+
+                if _is_cloudflare_challenge(resp, text):
+                    return {
+                        "posts": [],
+                        "error": FULLET_CLOUDFLARE_ERROR,
+                        "source": "fullet",
+                        "blockedByCloudflare": True,
+                    }
 
                 if resp.status >= 400:
                     return {"posts": [], "error": f"Upstream error ({resp.status})", "source": "fullet"}
@@ -252,13 +294,22 @@ async def _fetch_fullet_favorites(limit, offset):
 
     try:
         async with ClientSession(timeout=timeout) as session:
-            async with session.get(url, headers=headers) as resp:
+            async with session.get(url, headers=_fullet_headers(headers)) as resp:
                 text = await resp.text()
                 payload = {}
                 try:
                     payload = json.loads(text) if text else {}
                 except Exception:
                     payload = {}
+
+                if _is_cloudflare_challenge(resp, text):
+                    return {
+                        "posts": [],
+                        "error": FULLET_CLOUDFLARE_ERROR,
+                        "source": "fullet",
+                        "connected": True,
+                        "blockedByCloudflare": True,
+                    }
 
                 if resp.status in (401, 403):
                     _clear_fullet_api_key()
@@ -303,12 +354,21 @@ async def _set_fullet_favorite(post_id, favorited=None):
     timeout = ClientTimeout(total=18)
     try:
         async with ClientSession(timeout=timeout) as session:
-            async with session.post(url, json=body, headers=headers) as resp:
+            async with session.post(url, json=body, headers=_fullet_headers(headers)) as resp:
                 text = await resp.text()
                 try:
                     payload = json.loads(text) if text else {}
                 except Exception:
                     payload = {"error": text or "Unknown upstream response"}
+
+                if _is_cloudflare_challenge(resp, text):
+                    return {
+                        "status": 403,
+                        "payload": {
+                            "error": FULLET_CLOUDFLARE_ERROR,
+                            "blockedByCloudflare": True,
+                        },
+                    }
 
                 if resp.status in (401, 403):
                     _clear_fullet_api_key()
@@ -625,12 +685,18 @@ def register_fullet_routes(server):
         timeout = ClientTimeout(total=120)
         try:
             async with ClientSession(timeout=timeout) as session:
-                async with session.post(url, data=form, headers=headers) as resp:
+                async with session.post(url, data=form, headers=_fullet_headers(headers)) as resp:
                     text = await resp.text()
                     try:
                         payload = json.loads(text) if text else {}
                     except Exception:
                         payload = {"error": text or "Unknown upstream response"}
+
+                    if _is_cloudflare_challenge(resp, text):
+                        return web.json_response(
+                            {"error": FULLET_CLOUDFLARE_ERROR, "blockedByCloudflare": True},
+                            status=403,
+                        )
 
                     if resp.status in (401, 403):
                         _clear_fullet_api_key()

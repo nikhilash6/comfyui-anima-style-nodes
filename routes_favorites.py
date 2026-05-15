@@ -50,6 +50,7 @@ def normalize_fullet_post(item):
         "prompt": prompt,
         "artist": artist,
         "imageUrl": str(item.get("imageUrl") or ""),
+        "thumbnailUrl": str(item.get("thumbnailUrl") or ""),
         "createdAt": str(item.get("createdAt") or ""),
         "postUrl": str(item.get("postUrl") or ""),
     }
@@ -105,6 +106,7 @@ def _normalize_local_favorite(item):
         "prompt": str(item.get("prompt") or "").strip(),
         "artist": str(item.get("artist") or "").strip(),
         "imageUrl": str(item.get("imageUrl") or "").strip(),
+        "thumbnailUrl": str(item.get("thumbnailUrl") or "").strip(),
         "createdAt": str(item.get("createdAt") or "").strip(),
         "postUrl": str(item.get("postUrl") or "").strip(),
     })

@@ -2,6 +2,7 @@ import { api } from "../../scripts/api.js";
 import { FULLET_BASE, SITE_BASE } from "./config.js";
 import { Data } from "./data.js";
 import {
+    escapeHtml,
     favoriteKeyFromItem,
     isFulletLike,
     localFavoriteFromFullet,
@@ -33,7 +34,7 @@ export const Browser = (() => {
     let filter = "", sort = "works", category = "all", _renderId = 0, _observer, _lastList = [], _lastHighlightedTag = "";
     const FULLET_PROMPTS_PAGE_SIZE = 48;
     const FULLET_PROMPTS_SCROLL_MARGIN = 960;
-    let _fulletPosts = [], _fulletLoaded = false, _fulletNextOffset = 0, _fulletHasMore = true, _fulletLoading = false, _fulletLoadPromise = null, _fulletScrollHandler = null;
+    let _fulletPosts = [], _fulletLoaded = false, _fulletNextOffset = 0, _fulletHasMore = true, _fulletLoading = false, _fulletLoadPromise = null, _fulletScrollHandler = null, _fulletError = "";
     let _localFavorites = [], _localFavoritesLoaded = false;
     let _remoteFavorites = [], _remoteFavoritesLoaded = false;
     let _favoriteMap = new Map();
@@ -177,6 +178,7 @@ export const Browser = (() => {
         _fulletHasMore = true;
         _fulletLoading = false;
         _fulletLoadPromise = null;
+        _fulletError = "";
         _detachFulletScrollHandler();
     }
 
@@ -548,6 +550,7 @@ export const Browser = (() => {
             _fulletPosts = [];
             _fulletNextOffset = 0;
             _fulletHasMore = true;
+            _fulletError = "";
         }
 
         _fulletLoading = true;
@@ -566,6 +569,7 @@ export const Browser = (() => {
                 const r = await api.fetchApi(`/anima/fullet_prompts?${params.toString()}`);
                 const data = await r.json().catch(() => ({}));
                 const posts = Array.isArray(data.posts) ? data.posts : [];
+                _fulletError = typeof data.error === "string" ? data.error : "";
 
                 _fulletPosts = _dedupeFulletPosts([
                     ..._fulletPosts,
@@ -579,6 +583,7 @@ export const Browser = (() => {
                     _fulletPosts = [];
                     _fulletLoaded = true;
                 }
+                _fulletError = "Could not load Fullet prompts.";
                 _fulletHasMore = false;
             } finally {
                 _fulletLoading = false;
@@ -778,7 +783,8 @@ export const Browser = (() => {
 
         if (!list.length) {
             if (_observer) _observer.disconnect();
-            grid.innerHTML = `<div class="anima-empty"><span>No prompts found.</span></div>`;
+            const message = _fulletError || "No prompts found.";
+            grid.innerHTML = `<div class="anima-empty"><span>${escapeHtml(message)}</span></div>`;
             if (_fulletHasMore) {
                 _bindFulletInfiniteScroll(id);
             }
