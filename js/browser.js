@@ -1,5 +1,5 @@
 import { api } from "../../scripts/api.js";
-import { FULLET_BASE, SITE_BASE } from "./config.js";
+import { FULLET_API_BASE, FULLET_BASE, SITE_BASE } from "./config.js";
 import { Data } from "./data.js";
 import {
     escapeHtml,
@@ -124,17 +124,21 @@ export const Browser = (() => {
         const raw = String(value || "").trim();
         if (!raw) return "";
 
+        if (raw.startsWith("/api/media?")) {
+            return `${FULLET_API_BASE}${raw}`;
+        }
+
         try {
             const parsed = new URL(raw, FULLET_BASE);
             const pathname = String(parsed.pathname || "").toLowerCase();
-            if (!pathname.startsWith("/posts/") && !pathname.startsWith("/avatars/")) {
+            if (!pathname.startsWith("/posts/") && !pathname.startsWith("/avatars/") && !pathname.startsWith("/banners/")) {
                 return raw;
             }
         } catch {
             return raw;
         }
 
-        return `${FULLET_BASE}/api/media?src=${encodeURIComponent(raw)}`;
+        return `${FULLET_API_BASE}/api/media?src=${encodeURIComponent(raw)}`;
     }
 
     function _getFulletDisplayImageUrl(item) {

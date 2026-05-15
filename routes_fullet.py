@@ -24,7 +24,8 @@ _IMAGE_MAGIC = {
 _POST_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,128}$")
 
 BASE_DIR = os.path.dirname(__file__)
-FULLET_BASE_URL = os.getenv("ANIMA_FULLET_BASE_URL", "https://fullet.lat").rstrip("/")
+FULLET_WEB_BASE_URL = os.getenv("ANIMA_FULLET_WEB_BASE_URL", "https://fullet.lat").rstrip("/")
+FULLET_API_BASE_URL = os.getenv("ANIMA_FULLET_API_BASE_URL", "https://api.fullet.lat").rstrip("/")
 FULLET_PROMPTS_CACHE_TTL = int(os.getenv("ANIMA_FULLET_PROMPTS_CACHE_TTL", "120"))
 FULLET_FAVORITES_CACHE_TTL = int(os.getenv("ANIMA_FULLET_FAVORITES_CACHE_TTL", "90"))
 FULLET_TOKEN_FILE = os.path.join(BASE_DIR, "data", "fullet_integration_token.json")
@@ -218,7 +219,7 @@ async def _fetch_fullet_me(api_key):
     if not raw:
         return {"ok": False, "error": "Missing API key"}
 
-    url = f"{FULLET_BASE_URL}/api/integrations/anima/me"
+    url = f"{FULLET_API_BASE_URL}/api/integrations/anima/me"
     timeout = ClientTimeout(total=12)
     try:
         async with ClientSession(timeout=timeout) as session:
@@ -245,7 +246,7 @@ async def _fetch_fullet_me(api_key):
 
 async def _fetch_fullet_prompts(limit, offset):
     query = urlencode({"limit": limit, "offset": offset})
-    url = f"{FULLET_BASE_URL}/api/integrations/anima-prompts?{query}"
+    url = f"{FULLET_API_BASE_URL}/api/integrations/anima-prompts?{query}"
     timeout = ClientTimeout(total=12)
 
     try:
@@ -288,7 +289,7 @@ async def _fetch_fullet_favorites(limit, offset):
         return {"posts": [], "source": "fullet", "connected": False}
 
     query = urlencode({"limit": limit, "offset": offset})
-    url = f"{FULLET_BASE_URL}/api/integrations/anima/favorites?{query}"
+    url = f"{FULLET_API_BASE_URL}/api/integrations/anima/favorites?{query}"
     timeout = ClientTimeout(total=12)
 
     try:
@@ -349,7 +350,7 @@ async def _set_fullet_favorite(post_id, favorited=None):
     if isinstance(favorited, bool):
         body["favorited"] = favorited
 
-    url = f"{FULLET_BASE_URL}/api/integrations/anima/favorites"
+    url = f"{FULLET_API_BASE_URL}/api/integrations/anima/favorites"
     timeout = ClientTimeout(total=18)
     try:
         async with ClientSession(timeout=timeout) as session:
@@ -557,7 +558,7 @@ def register_fullet_routes(server):
     <h1>API Key Required</h1>
     <p>The old login redirect flow for Anima has been retired.</p>
     <p>Generate a Personal API Key in your Fullet account and paste it into the node locally.</p>
-    <p><a href=\"{escape(FULLET_BASE_URL)}/ajustes/anima-key\" target=\"_blank\" rel=\"noopener\">Open Fullet API key settings</a></p>
+    <p><a href=\"{escape(FULLET_WEB_BASE_URL)}/ajustes/anima-key\" target=\"_blank\" rel=\"noopener\">Open Fullet API key settings</a></p>
   </div>
 </body>
 </html>
@@ -680,7 +681,7 @@ def register_fullet_routes(server):
         if style_research_json:
             form.add_field("styleResearch", style_research_json)
 
-        url = f"{FULLET_BASE_URL}/api/integrations/anima/upload"
+        url = f"{FULLET_API_BASE_URL}/api/integrations/anima/upload"
         timeout = ClientTimeout(total=120)
         try:
             async with ClientSession(timeout=timeout) as session:
