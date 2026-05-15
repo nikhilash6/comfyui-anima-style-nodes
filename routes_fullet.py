@@ -34,8 +34,7 @@ FULLET_CLIENT_HEADERS = {
     "User-Agent": "ComfyUI-AnimaStyleExplorer/1.0 (+https://fullet.lat)",
 }
 FULLET_CLOUDFLARE_ERROR = (
-    "Cloudflare is challenging the Fullet API. Add a Skip/Allow rule for "
-    "/api/integrations/anima* and /api/media* so ComfyUI can load prompts."
+    "Could not connect to Fullet right now. Please try again later."
 )
 
 _fullet_lock = threading.Lock()
