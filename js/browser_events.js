@@ -28,8 +28,12 @@ export function attachBrowserEvents({
     loadLocalFavorites,
 }) {
     const onlineToggle = el.querySelector("#anima-online-toggle");
+    if (localStorage.getItem("anima_remote_images_opt_in_v1") === null) {
+        localStorage.setItem("anima_online", "false");
+        localStorage.setItem("anima_remote_images_opt_in_v1", "seen");
+    }
     if (localStorage.getItem("anima_online") === null) {
-        localStorage.setItem("anima_online", "true");
+        localStorage.setItem("anima_online", "false");
     }
     onlineToggle.checked = localStorage.getItem("anima_online") === "true";
     onlineToggle.addEventListener("change", (e) => {

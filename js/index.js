@@ -127,9 +127,10 @@ function ensureTagDisplayWidget(node) {
         draw(ctx, n, width, y) {
             const tag = n._currentTag;
             if (!tag) return;
+            const kind = String(n._currentTagKind || "style").toUpperCase();
             ctx.save();
-            ctx.fillStyle = "#0f0f18";
-            ctx.strokeStyle = "#1e1e30";
+            ctx.fillStyle = kind === "CHARACTER" ? "#111827" : "#0f1324";
+            ctx.strokeStyle = kind === "CHARACTER" ? "#31515f" : "#2b3552";
             ctx.lineWidth = 1;
             ctx.beginPath();
             if (typeof ctx.roundRect === "function") {
@@ -139,10 +140,10 @@ function ensureTagDisplayWidget(node) {
             }
             ctx.fill();
             ctx.stroke();
-            ctx.fillStyle = "#606080";
+            ctx.fillStyle = kind === "CHARACTER" ? "#9bd7ef" : "#aebce2";
             ctx.font = "500 10px 'JetBrains Mono',monospace";
             ctx.textAlign = "center";
-            ctx.fillText(`@${tag.replace(/_/g, " ")}`, width / 2, y + 15);
+            ctx.fillText(`${kind} @${tag.replace(/_/g, " ")}`, width / 2, y + 15);
             ctx.restore();
         },
         computeSize() { return [0, 26]; },
@@ -174,7 +175,7 @@ async function openStyleBrowser(node) {
         const mod = await import("./browser.js");
         const browser = mod?.Browser;
         if (!browser) throw new Error("Browser module unavailable");
-        browser.open((artist) => AutoCycle.inject(node, artist), node);
+        browser.open((artist, options) => AutoCycle.inject(node, artist, options), node);
         const cycleBtn = browser.cycleBtn?.();
         if (cycleBtn) cycleBtn.onclick = () => AutoCycle.toggle(node);
     } catch (error) {

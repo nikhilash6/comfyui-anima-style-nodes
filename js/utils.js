@@ -1,9 +1,18 @@
 import { app } from "../../scripts/app.js";
 import { CDN_BASE } from "./config.js";
 
+export function remoteImagesEnabled() {
+    try {
+        return localStorage.getItem("anima_online") === "true";
+    } catch {
+        return false;
+    }
+}
+
 export function thumbUrl(artist, useCustom = false) {
     if (!artist) return "";
     const id = artist.id ?? "";
+    const isOnline = remoteImagesEnabled();
 
     const direct = String(
         artist.thumb_url
@@ -12,7 +21,10 @@ export function thumbUrl(artist, useCustom = false) {
         || artist.image
         || ""
     ).trim();
-    if (direct) return direct;
+    if (direct) {
+        if (/^https?:\/\//i.test(direct) && !isOnline) return "";
+        return direct;
+    }
 
     if (!id) return "";
 
@@ -26,7 +38,6 @@ export function thumbUrl(artist, useCustom = false) {
         return `/anima/images/${page}/${id}.webp`;
     }
 
-    const isOnline = localStorage.getItem("anima_online") === "true";
     if (!isOnline) {
         return `/anima/images/${page}/${id}.webp`;
     }
@@ -43,7 +54,7 @@ export function getPromptWidget(node) {
     ) ?? null;
 }
 
-function setPromptValue(node, w, value, tag = "") {
+function setPromptValue(node, w, value, tag = "", kind = "") {
     w.value = value;
     if (w.inputEl) {
         w.inputEl.value = value;
@@ -54,12 +65,14 @@ function setPromptValue(node, w, value, tag = "") {
 
     if (tag) {
         node._currentTag = tag;
+        if (kind) node._currentTagKind = kind;
     }
 
     const badge = document.getElementById("anima-badge");
     if (badge && tag) {
         const displayTag = tag.replace(/_/g, " ");
-        badge.textContent = `@${displayTag}`;
+        const displayKind = String(kind || node?._currentTagKind || "style").toUpperCase();
+        badge.textContent = `${displayKind} @${displayTag}`;
         badge.style.display = "block";
     }
 
@@ -169,12 +182,76 @@ export function injectTag(current, tag) {
     return cleaned ? `${cleaned}, @${spaceTag}, ` : `@${spaceTag}, `;
 }
 
-export function applyStyle(node, artist) {
+function sourceKindFromArtist(artist) {
+    const kind = String(artist?.source_kind || "").toLowerCase();
+    return kind === "character" ? "character" : "style";
+}
+
+function appendPromptTags(current = "", tags = []) {
+    const text = String(current || "");
+    const existing = new Set(
+        text
+            .split(",")
+            .map((part) => part.replace(/^@+/, "").replace(/\s+/g, " ").trim().toLowerCase())
+            .filter(Boolean)
+    );
+    const cleanedTags = [];
+
+    for (const tag of tags) {
+        const display = String(tag || "")
+            .replace(/^@+/, "")
+            .replace(/_/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+        const key = display.toLowerCase();
+        if (!display || existing.has(key)) continue;
+        existing.add(key);
+        cleanedTags.push(display);
+    }
+
+    if (!cleanedTags.length) return text;
+
+    const cleaned = text.trim().replace(/[\s,]+$/g, "");
+    const suffix = cleanedTags.join(", ");
+    return cleaned ? `${cleaned}, ${suffix}, ` : `${suffix}, `;
+}
+
+function characterTriggerParts(artist, mode = "trigger") {
+    const trigger = String(artist?.trigger || artist?.tag || "")
+        .replace(/^@+/, "")
+        .replace(/_/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    const tags = Array.isArray(artist?.tags)
+        ? artist.tags.map((tag) => String(tag || "").trim()).filter(Boolean)
+        : [];
+    if (mode === "trigger-tags") return [trigger, ...tags].filter(Boolean);
+    return trigger ? [trigger] : [];
+}
+
+export function applyStyle(node, artist, options = {}) {
     const w = getPromptWidget(node);
-    if (!w) return;
-    const tag = artist.tag;
-    const newVal = injectTag(String(w.value || ""), tag);
-    setPromptValue(node, w, newVal, tag);
+    if (!w) return { ok: false, error: "Prompt widget not found." };
+
+    const tag = String(artist?.tag || "").trim();
+    if (!tag) return { ok: false, error: "Selected item has no tag." };
+
+    const kind = sourceKindFromArtist(artist);
+    const current = String(w.value || "");
+
+    if (kind === "character") {
+        const mode = options?.mode === "trigger-tags" ? "trigger-tags" : "trigger";
+        const parts = characterTriggerParts(artist, mode);
+        const newVal = appendPromptTags(current, parts);
+        const keepTag = String(node?._currentTag || "");
+        const keepKind = String(node?._currentTagKind || "style");
+        setPromptValue(node, w, newVal, keepTag, keepTag ? keepKind : "");
+        return { ok: true, action: mode, kind, tag, prompt: newVal, inserted: parts };
+    }
+
+    const newVal = injectTag(current, tag);
+    setPromptValue(node, w, newVal, tag, kind);
+    return { ok: true, action: "apply-style", kind, tag, prompt: newVal };
 }
 
 export function stripLeadingArtist(prompt = "") {
@@ -220,7 +297,7 @@ export function applyTemplateStyle(node, post) {
         .replace(/\{\{\s*prompt\s*\}\}/gi, cleanedPrompt)
         .replace(/\{\{\s*artist\s*\}\}/gi, artist.token);
 
-    setPromptValue(node, w, rendered, artist.tag);
+    setPromptValue(node, w, rendered, artist.tag, "style");
 
     return {
         ok: true,
@@ -251,12 +328,12 @@ export function applyFulletSelection(node, post, mode = "both") {
             updatePrompt: false,
         });
         if (structured !== null) {
-            setPromptValue(node, w, structured, artist.tag);
+            setPromptValue(node, w, structured, artist.tag, "style");
             return { ok: true, mode, prompt: structured, artist: artist.display };
         }
 
         const next = injectTag(current, artist.tag);
-        setPromptValue(node, w, next, artist.tag);
+        setPromptValue(node, w, next, artist.tag, "style");
         return { ok: true, mode, prompt: next, artist: artist.display };
     }
 
@@ -265,7 +342,8 @@ export function applyFulletSelection(node, post, mode = "both") {
         if (hasPromptToken) {
             const rendered = current.replace(/\{\{\s*prompt\s*\}\}/gi, promptOnly);
             const keepTag = String(node?._currentTag || "");
-            setPromptValue(node, w, rendered, keepTag);
+            const keepKind = String(node?._currentTagKind || "style");
+            setPromptValue(node, w, rendered, keepTag, keepTag ? keepKind : "");
             return { ok: true, mode, prompt: rendered, artist: keepTag ? keepTag.replace(/_/g, " ") : "" };
         }
 
@@ -276,13 +354,14 @@ export function applyFulletSelection(node, post, mode = "both") {
         });
         if (structured !== null) {
             const keepTag = String(node?._currentTag || "");
-            setPromptValue(node, w, structured, keepTag);
+            const keepKind = String(node?._currentTagKind || "style");
+            setPromptValue(node, w, structured, keepTag, keepTag ? keepKind : "");
             return { ok: true, mode, prompt: structured, artist: keepTag ? keepTag.replace(/_/g, " ") : "" };
         }
 
         const preservedArtist = resolvePreservedArtist(current, String(node?._currentTag || ""));
         const next = composeArtistAndPrompt(preservedArtist.token, promptOnly);
-        setPromptValue(node, w, next, preservedArtist.tag);
+        setPromptValue(node, w, next, preservedArtist.tag, "style");
         return {
             ok: true,
             mode,
@@ -303,7 +382,7 @@ export function applyFulletSelection(node, post, mode = "both") {
             .replace(/\{\{\s*prompt\s*\}\}/gi, promptOnly)
             .replace(/\{\{\s*artist\s*\}\}/gi, artist.token);
         const next = hasArtistToken ? rendered : injectTag(rendered, artist.tag);
-        setPromptValue(node, w, next, artist.tag);
+        setPromptValue(node, w, next, artist.tag, "style");
         return { ok: true, mode: "both", prompt: next, artist: artist.display };
     }
 
@@ -314,12 +393,12 @@ export function applyFulletSelection(node, post, mode = "both") {
         updatePrompt: true,
     });
     if (structured !== null) {
-        setPromptValue(node, w, structured, artist.tag);
+        setPromptValue(node, w, structured, artist.tag, "style");
         return { ok: true, mode: "both", prompt: structured, artist: artist.display };
     }
 
     const next = composeArtistAndPrompt(artist.token, promptOnly);
-    setPromptValue(node, w, next, artist.tag);
+    setPromptValue(node, w, next, artist.tag, "style");
     return { ok: true, mode: "both", prompt: next, artist: artist.display };
 }
 

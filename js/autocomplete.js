@@ -46,9 +46,16 @@ export const AC = (() => {
             const row = document.createElement("div");
             row.className = "anima-ac-row" + (i === 0 ? " on" : "");
             row.dataset.tag = a.tag;
+            const kind = String(a?.source_kind || "").toLowerCase();
+            const kindLabel = kind === "character" ? "CHARACTER" : kind === "artist" ? "STYLE" : "";
+            const displayTag = kind === "character"
+                ? String(a?.trigger || a?.tag || "").replace(/^@+/, "")
+                : `@${a.tag}`;
+            row._artist = a;
             row.innerHTML = `
                 <img class="anima-ac-thumb" src="${thumbUrl(a)}" alt="" onerror="this.style.display='none'"/>
-                <span class="anima-ac-tag">@${a.tag}</span>
+                <span class="anima-ac-tag">${displayTag}</span>
+                ${kindLabel ? `<span class="anima-ac-kind anima-ac-kind-${kind}">${kindLabel}</span>` : ""}
                 ${a.works ? `<span class="anima-ac-works">${a.works.toLocaleString()}</span>` : ""}
             `;
             row.addEventListener("mousedown", () => _pick(a));
@@ -63,7 +70,7 @@ export const AC = (() => {
         const idx = rows.indexOf(cur);
         if (e.key === "ArrowDown") { e.preventDefault(); cur?.classList.remove("on"); rows[(idx + 1) % rows.length]?.classList.add("on"); }
         else if (e.key === "ArrowUp") { e.preventDefault(); cur?.classList.remove("on"); rows[(idx - 1 + rows.length) % rows.length]?.classList.add("on"); }
-        else if (e.key === "Enter" || e.key === "Tab") { const on = el.querySelector(".anima-ac-row.on"); if (on) { e.preventDefault(); _pick({ tag: on.dataset.tag }); } }
+        else if (e.key === "Enter" || e.key === "Tab") { const on = el.querySelector(".anima-ac-row.on"); if (on) { e.preventDefault(); _pick(on._artist || { tag: on.dataset.tag }); } }
         else if (e.key === "Escape") { hide(); }
     }
 
@@ -73,9 +80,13 @@ export const AC = (() => {
         const cursor = ta.selectionStart;
         const before = val.slice(0, atIdx);
         const after = val.slice(cursor).replace(/^,?\s*/, "");
-        const spaceTag = artist.tag.replace(/_/g, " ");
-        ta.value = `${before}@${spaceTag}, ${after}`.trimEnd();
-        const pos = before.length + spaceTag.length + 1;
+        const kind = String(artist?.source_kind || "").toLowerCase();
+        const spaceTag = String(kind === "character" ? (artist.trigger || artist.tag) : artist.tag)
+            .replace(/^@+/, "")
+            .replace(/_/g, " ");
+        const insert = kind === "character" ? spaceTag : `@${spaceTag}`;
+        ta.value = `${before}${insert}, ${after}`.trimEnd();
+        const pos = before.length + insert.length;
         ta.setSelectionRange(pos, pos);
         ta.dispatchEvent(new Event("input", { bubbles: true }));
         ta.dispatchEvent(new Event("change", { bubbles: true }));

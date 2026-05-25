@@ -78,6 +78,10 @@ Great for discovering new styles hands-free.
 
 The node includes a built-in database of 20,000+ legacy artists plus dedicated **Animadex Styles** and **Characters** browser tabs. Enable **Show Animadex in All Styles** in the Browser tools menu only when you also want those entries mixed into the main All Styles tab, then click **Update Styles** to refresh the active source with local rate limiting.
 
+### Internet Access
+
+The browser works offline by default with the bundled local datasets. Remote preview images start disabled, and Fullet Prompts shows an **Enable Internet Access** gate before it loads anything from the network. Updating styles or refreshing the Animadex index requires internet only when the user clicks the update action.
+
 ### Publish Style Collages to Fullet
 
 Connect a Fullet Personal API Key, open **Publish Collage**, and choose one or more recent local generations that include an `@artist` tag.

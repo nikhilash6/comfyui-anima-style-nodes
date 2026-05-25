@@ -5,7 +5,7 @@
                 <div class="hdr">
                     <span class="hdr-title" style="margin-right:4px">Anima Style Explorer</span>
                     <div class="hdr-tabs">
-                        <button class="hdr-btn-txt" id="anima-cat-all" style="opacity:1;">All Styles</button>
+                        <button class="hdr-btn-txt active" id="anima-cat-all" style="opacity:1;">All Styles</button>
                         <button class="hdr-btn-txt" id="anima-cat-animadex-styles" style="opacity:0.5;">Animadex Styles</button>
                         <button class="hdr-btn-txt" id="anima-cat-animadex-characters" style="opacity:0.5;">Characters</button>
                         <button class="hdr-btn-txt" id="anima-cat-fullet" style="opacity:0.5;">Fullet Prompts</button>
@@ -22,7 +22,7 @@
                     <button class="hdr-btn-txt" id="anima-fullet-disconnect" style="display:none;">Remove Key</button>
                     <button class="hdr-btn-txt" id="anima-fullet-upload">Publish Collage</button>
                     <div class="hdr-data-btns">
-                        <div class="hdr-toggle-wrap" title="Show remote preview images from the internet">
+                        <div class="hdr-toggle-wrap" title="Enable internet access for remote preview images, including Animadex Styles and Characters">
                             <span class="hdr-toggle-label">Remote Images</span>
                             <label class="hdr-switch">
                                 <input type="checkbox" id="anima-online-toggle"/>

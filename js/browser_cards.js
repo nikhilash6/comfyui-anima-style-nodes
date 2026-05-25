@@ -83,22 +83,45 @@ export function createStyleCard({
         : "";
     const source = String(artist?.source || "").toLowerCase();
     const sourceKind = String(artist?.source_kind || "").toLowerCase();
+    const isCharacter = sourceKind === "character";
+    const sourceLabel = sourceKind === "artist" ? "STYLE" : sourceKind === "character" ? "CHARACTER" : sourceKind;
     const sourceBadge = source === "animadex"
-        ? `<span class="anima-card-source">${escapeHtml(sourceKind || "animadex")}</span>`
+        ? `<span class="anima-card-source anima-card-source-${escapeHtml(sourceKind || "animadex")}">${escapeHtml(sourceLabel || "ANIMADEX")}</span>`
         : "";
     const worksLabel = source === "animadex" ? "images" : "works";
+    const fitClass = source === "animadex" ? "anima-card-img-contain" : "";
+    const displayTag = String(artist.tag || "").replace(/_/g, " ");
+    const triggerText = String(artist?.trigger || displayTag).replace(/^@+/, "");
+    const titlePrefix = isCharacter ? "" : "@";
+    const overlayButtons = isCharacter
+        ? `
+                <button class="anima-card-pick" data-apply="trigger">Trigger</button>
+                <button class="anima-card-fav anima-card-trigger-tags" data-apply="trigger-tags">Trigger + tags</button>
+          `
+        : `
+                <button class="anima-card-pick" data-apply="style">Apply Style</button>
+                <button class="anima-card-fav" data-favorite="toggle">${isFav ? "Unfavorite" : "Favorite"}</button>
+          `;
+    const tagsPreview = isCharacter && Array.isArray(artist?.tags) && artist.tags.length
+        ? `<span class="anima-card-tags-preview" title="${escapeHtml(artist.tags.join(", "))}">${escapeHtml(artist.tags.slice(0, 4).join(", "))}${artist.tags.length > 4 ? "..." : ""}</span>`
+        : "";
+
+    const imageHtml = imageUrl
+        ? `<img loading="lazy" src="${escapeHtml(imageUrl)}" alt="${escapeHtml(artist.tag || "")}" onerror="this.style.display='none';this.parentElement.classList.add('no-img')"/>`
+        : "";
 
     card.innerHTML = `
-        <div class="anima-card-img" data-init="${escapeHtml((artist.tag?.[0] || "?").toUpperCase())}">
-            <img loading="lazy" src="${escapeHtml(imageUrl)}" alt="${escapeHtml(artist.tag || "")}" onerror="this.style.display='none';this.parentElement.classList.add('no-img')"/>
+        <div class="anima-card-img ${fitClass} ${imageUrl ? "" : "no-img"}" data-init="${escapeHtml((artist.tag?.[0] || "?").toUpperCase())}">
+            ${imageHtml}
             ${rankHtml}
             <div class="anima-card-overlay">
-                <button class="anima-card-pick">Apply</button>
-                <button class="anima-card-fav">${isFav ? "Unfavorite" : "Favorite"}</button>
+                ${overlayButtons}
             </div>
         </div>
         <div class="anima-card-meta">
-            <span class="anima-card-tag" title="@${escapeHtml(String(artist.tag || "").replace(/_/g, " "))}">@${escapeHtml(String(artist.tag || "").replace(/_/g, " "))}</span>
+            <span class="anima-card-tag" title="${escapeHtml(titlePrefix + displayTag)}">${escapeHtml(titlePrefix + displayTag)}</span>
+            ${isCharacter ? `<span class="anima-card-trigger" title="${escapeHtml(triggerText)}">Trigger: ${escapeHtml(triggerText)}</span>` : ""}
+            ${tagsPreview}
             ${(!isUniq && artist.works) ? `<span class="anima-card-works">${Number(artist.works).toLocaleString()} ${worksLabel}${sourceBadge}</span>` : sourceBadge}
         </div>
     `;
@@ -106,6 +129,7 @@ export function createStyleCard({
     const mediaEl = card.querySelector(".anima-card-img");
 
     card.addEventListener("mouseenter", () => {
+        if (!imageUrl) return;
         const img = card.querySelector("img");
         if (img && (!img.complete || img.naturalWidth === 0)) {
             img.src = imageUrl + (imageUrl.includes("?") ? "&" : "?") + "t=" + Date.now();
@@ -119,14 +143,14 @@ export function createStyleCard({
         onOpenSwipe?.(artist);
     });
 
-    const pick = () => onApply?.(artist, mediaEl || card);
-    card.querySelector(".anima-card-pick").addEventListener("click", (e) => {
+    const pick = (mode = "style") => onApply?.(artist, mediaEl || card, mode);
+    card.querySelectorAll("[data-apply]").forEach((btn) => btn.addEventListener("click", (e) => {
         e.stopPropagation();
-        pick();
-    });
+        pick(btn.dataset.apply || "style");
+    }));
 
-    const favBtn = card.querySelector(".anima-card-fav");
-    favBtn.addEventListener("click", async (e) => {
+    const favBtn = card.querySelector("[data-favorite='toggle']");
+    favBtn?.addEventListener("click", async (e) => {
         e.stopPropagation();
         const res = await onToggleFavorite?.(artist, favBtn, mediaEl || favBtn);
         if (res?.ok && typeof res.favorited === "boolean") {
@@ -134,6 +158,6 @@ export function createStyleCard({
         }
     });
 
-    card.addEventListener("click", pick);
+    card.addEventListener("click", () => pick(isCharacter ? "trigger" : "style"));
     return card;
 }

@@ -87,16 +87,20 @@ export const AutoCycle = (() => {
         return _running;
     }
 
-    async function inject(node, a) {
+    async function inject(node, a, options = {}) {
         _node = node;
+        const isCharacter = String(a?.source_kind || "").toLowerCase() === "character";
+        if (isCharacter) {
+            return applyStyle(node, a, { mode: options?.mode });
+        }
         if (!_running) {
-            applyStyle(node, a);
-            return;
+            return applyStyle(node, a, { mode: options?.mode });
         }
         if (node._currentTag === a.tag) a = await Data.random();
         _manualNext = a;
-        applyStyle(node, a);
+        const result = applyStyle(node, a, { mode: options?.mode });
         if ((app.ui.lastQueueSize || 0) === 0) _next();
+        return result;
     }
 
     return { toggle, stop, inject, get running() { return _running; } };

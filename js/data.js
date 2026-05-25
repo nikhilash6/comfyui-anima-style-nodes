@@ -90,7 +90,9 @@ export const Data = (() => {
 
     async function random() {
         const list = await all();
-        return list.length ? list[Math.floor(Math.random() * list.length)] : null;
+        const styles = list.filter((item) => String(item?.source_kind || "").toLowerCase() !== "character");
+        const pool = styles.length ? styles : list;
+        return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
     }
 
     return { all, animadex, reset, search, random };

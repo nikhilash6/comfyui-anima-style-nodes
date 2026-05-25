@@ -26,7 +26,7 @@ import {
 import { attachBrowserEvents } from "./browser_events.js";
 import { getBrowserTemplate } from "./browser_template.js";
 import { Swipe } from "./swipe.js";
-import { applyFulletSelection, buildFulletCopyText, getPromptWidget, thumbUrl } from "./utils.js";
+import { applyFulletSelection, buildFulletCopyText, getPromptWidget, remoteImagesEnabled, thumbUrl } from "./utils.js";
 import { showToast } from "./toast.js";
 
 export const Browser = (() => {
@@ -174,11 +174,20 @@ export const Browser = (() => {
 
     function _setCategoryTabs() {
         if (!el) return;
-        el.querySelector("#anima-cat-all").style.opacity = category === "all" ? "1" : "0.5";
-        el.querySelector("#anima-cat-animadex-styles").style.opacity = category === "animadex-styles" ? "1" : "0.5";
-        el.querySelector("#anima-cat-animadex-characters").style.opacity = category === "animadex-characters" ? "1" : "0.5";
-        el.querySelector("#anima-cat-fullet").style.opacity = category === "fullet" ? "1" : "0.5";
-        el.querySelector("#anima-cat-favorites").style.opacity = category === "favorites" ? "1" : "0.5";
+        const tabs = [
+            ["#anima-cat-all", "all"],
+            ["#anima-cat-animadex-styles", "animadex-styles"],
+            ["#anima-cat-animadex-characters", "animadex-characters"],
+            ["#anima-cat-fullet", "fullet"],
+            ["#anima-cat-favorites", "favorites"],
+        ];
+        for (const [selector, value] of tabs) {
+            const btn = el.querySelector(selector);
+            if (!btn) continue;
+            const active = category === value;
+            btn.classList.toggle("active", active);
+            btn.style.opacity = active ? "1" : "0.72";
+        }
         const sortSelect = el.querySelector(".hdr-select");
         if (sortSelect) sortSelect.disabled = !_isSortableCategory();
     }
@@ -749,19 +758,20 @@ export const Browser = (() => {
         Swipe.open({
             list,
             startIndex: boundedStart,
-            onApply: (item) => {
+            onApply: async (item) => {
                 if (isFulletLike(item)) {
-                    _applyFullet(item, "both");
+                    await _applyFullet(item, "both");
                     return;
                 }
-                onPick?.(item);
+                const result = await onPick?.(item);
+                if (result?.ok === false || String(item?.source_kind || "").toLowerCase() === "character") return;
                 highlight(item?.tag || "");
             },
             getImageUrl: (item) => {
                 if (isFulletLike(item)) {
                     return String(item?.fullImageUrl || _getFulletFullImageUrl(item) || "");
                 }
-                if (item?.img_url) return String(item.img_url || "");
+                if (item?.img_url && remoteImagesEnabled()) return String(item.img_url || "");
                 return thumbUrl(item, false);
             },
             getTitle: (item) => {
@@ -910,6 +920,16 @@ export const Browser = (() => {
             minHeight: "400px",
             renderItem: (item) => _card(item),
         });
+
+        if (!remoteImagesEnabled()) {
+            const notice = document.createElement("div");
+            notice.className = "anima-remote-notice";
+            notice.innerHTML = `
+                <strong>Remote Images are disabled.</strong>
+                <span>Turn on <b>Remote Images</b> in the top bar to see preview images. Triggers and tags still work offline.</span>
+            `;
+            grid.prepend(notice);
+        }
     }
 
     function _card(artist) {
@@ -922,10 +942,23 @@ export const Browser = (() => {
             imageUrl: url,
             isUniq,
             isFav,
-            onApply: (selectedArtist, anchorEl = null) => {
-                onPick?.(selectedArtist);
+            onApply: async (selectedArtist, anchorEl = null, mode = "style") => {
+                const result = await onPick?.(selectedArtist, { mode });
+                if (result?.ok === false) return;
+
+                const kind = String(selectedArtist?.source_kind || "").toLowerCase() === "character"
+                    ? "CHARACTER"
+                    : "STYLE";
+                const displayTag = String(selectedArtist?.tag || "").replace(/_/g, " ");
+
+                if (kind === "CHARACTER") {
+                    const label = result?.action === "trigger-tags" ? "Trigger + tags" : "Trigger";
+                    showToast(`Added ${label}: ${displayTag}`, "success", 1500, { anchor: anchorEl });
+                    return;
+                }
+
                 highlight(selectedArtist.tag);
-                showToast(`Applied @${String(selectedArtist?.tag || "").replace(/_/g, " ")}`, "success", 1500, { anchor: anchorEl });
+                showToast(`Applied ${kind} @${displayTag}`, "success", 1500, { anchor: anchorEl });
             },
             onToggleFavorite: async (selectedArtist, _btn, anchorEl = null) => {
                 return await _toggleStyleFavorite(selectedArtist, anchorEl);
