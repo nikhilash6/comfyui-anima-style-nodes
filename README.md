@@ -28,7 +28,7 @@ Anima Style Explorer
 
 ## What it does
 
-This node replaces the usual “type and guess” prompt workflow with an interactive style selector.
+This node replaces the usual "type and guess" prompt workflow with an interactive style selector.
 
 It works similarly to **CLIP Text Encode**:
 
@@ -76,7 +76,7 @@ Great for discovering new styles hands-free.
 
 ### Update Styles
 
-The node includes a built-in database of 5,000+ artists. You can manually refresh this data by clicking the **Update Styles** button on the node or the refresh icon in the Browser. This avoids automatic downloads on startup.
+The node includes a built-in database of 20,000+ legacy artists plus dedicated **Animadex Styles** and **Characters** browser tabs. Enable **Show Animadex in All Styles** in the Browser tools menu only when you also want those entries mixed into the main All Styles tab, then click **Update Styles** to refresh the active source with local rate limiting.
 
 ### Publish Style Collages to Fullet
 
@@ -92,6 +92,12 @@ Connect a Fullet Personal API Key, open **Publish Collage**, and choose one or m
 
 Style explorer and dataset concept by @ThetaCursed
 https://thetacursed.github.io/Anima-Style-Explorer
+
+Legacy preview assets are loaded from:
+https://github.com/ThetaCursed/Anima-Assets
+
+Optional Animadex artist/character index:
+https://animadex.net
 
 All credit for the organization, tagging, and visual references belongs to its original creator.
 If the original author requests any modification or removal of dataset content, it will be respected.

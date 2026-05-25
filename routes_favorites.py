@@ -96,6 +96,11 @@ def _normalize_local_favorite(item):
             "works": int(item.get("works") or 0),
             "uniqueness_score": float(item.get("uniqueness_score") or 0),
             "name": str(item.get("name") or "").strip(),
+            "source": str(item.get("source") or "").strip(),
+            "source_kind": str(item.get("source_kind") or "").strip(),
+            "slug": str(item.get("slug") or "").strip(),
+            "thumb_url": str(item.get("thumb_url") or "").strip(),
+            "img_url": str(item.get("img_url") or "").strip(),
             "localPreviewCached": bool(item.get("localPreviewCached") or False),
             "addedAt": added_at,
         }

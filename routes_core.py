@@ -20,7 +20,14 @@ def register_core_routes(server, require_local_token=None):
 
     @server.instance.routes.get("/anima/artists")
     async def get_artists(request):
+        if str(request.query.get("source", "")).strip().lower() == "animadex":
+            source_kind = str(request.query.get("kind", "")).strip().lower()
+            return web.json_response(artist_data.load_animadex(source_kind))
         return web.json_response(artist_data.load())
+
+    @server.instance.routes.get("/anima/data_stats")
+    async def data_stats(request):
+        return web.json_response(artist_data.stats())
 
     @server.instance.routes.get("/anima/random")
     async def get_random(request):
@@ -35,8 +42,40 @@ def register_core_routes(server, require_local_token=None):
             denied = require_local_token(request)
             if denied is not None:
                 return denied
-        success = artist_data.download()
-        return web.json_response({"success": success})
+
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        if not isinstance(body, dict):
+            body = {}
+
+        include_animadex = str(request.query.get("animadex", "")).strip().lower() in ("1", "true", "yes", "on")
+        include_animadex = include_animadex or bool(body.get("animadex"))
+
+        raw_modes = request.query.get("animadex_modes") or body.get("animadexModes") or ""
+        animadex_modes = [
+            part.strip().lower()
+            for part in str(raw_modes).split(",")
+            if part.strip()
+        ] or None
+
+        try:
+            max_pages = int(request.query.get("animadex_max_pages") or body.get("animadexMaxPages") or 0)
+        except Exception:
+            max_pages = 0
+        max_pages = max_pages or None
+
+        success = artist_data.download(
+            include_animadex=include_animadex,
+            animadex_modes=animadex_modes,
+            max_pages=max_pages,
+        )
+        return web.json_response({
+            "success": success,
+            "includeAnimadex": include_animadex,
+            "stats": artist_data.stats(),
+        })
 
     @server.instance.routes.post("/anima/download_images")
     async def download_images(request):

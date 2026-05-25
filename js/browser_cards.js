@@ -81,6 +81,12 @@ export function createStyleCard({
     const rankHtml = isUniq && artist.uniquenessRank
         ? `<div class="anima-uniqueness-rank" title="Uniqueness score: ${Number(artist.uniqueness_score || 0).toFixed(2)}">#${artist.uniquenessRank}</div>`
         : "";
+    const source = String(artist?.source || "").toLowerCase();
+    const sourceKind = String(artist?.source_kind || "").toLowerCase();
+    const sourceBadge = source === "animadex"
+        ? `<span class="anima-card-source">${escapeHtml(sourceKind || "animadex")}</span>`
+        : "";
+    const worksLabel = source === "animadex" ? "images" : "works";
 
     card.innerHTML = `
         <div class="anima-card-img" data-init="${escapeHtml((artist.tag?.[0] || "?").toUpperCase())}">
@@ -93,7 +99,7 @@ export function createStyleCard({
         </div>
         <div class="anima-card-meta">
             <span class="anima-card-tag" title="@${escapeHtml(String(artist.tag || "").replace(/_/g, " "))}">@${escapeHtml(String(artist.tag || "").replace(/_/g, " "))}</span>
-            ${(!isUniq && artist.works) ? `<span class="anima-card-works">${Number(artist.works).toLocaleString()} works</span>` : ""}
+            ${(!isUniq && artist.works) ? `<span class="anima-card-works">${Number(artist.works).toLocaleString()} ${worksLabel}${sourceBadge}</span>` : sourceBadge}
         </div>
     `;
 

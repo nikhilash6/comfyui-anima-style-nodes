@@ -37,6 +37,26 @@ export function attachBrowserEvents({
         render();
     });
 
+    const animadexToggle = el.querySelector("#anima-animadex-source");
+    if (localStorage.getItem("anima_animadex_enabled") === null) {
+        localStorage.setItem("anima_animadex_enabled", "false");
+    }
+    if (animadexToggle) {
+        animadexToggle.checked = localStorage.getItem("anima_animadex_enabled") === "true";
+        animadexToggle.addEventListener("change", (e) => {
+            localStorage.setItem("anima_animadex_enabled", e.target.checked ? "true" : "false");
+            render();
+        });
+    }
+
+    const updateStylesUrl = () => {
+        const category = getCategory?.();
+        const includeAnimadex = localStorage.getItem("anima_animadex_enabled") === "true";
+        if (category === "animadex-styles") return "/anima/update?animadex=1&animadex_modes=artists";
+        if (category === "animadex-characters") return "/anima/update?animadex=1&animadex_modes=characters";
+        return includeAnimadex ? "/anima/update?animadex=1" : "/anima/update";
+    };
+
     const keepSessionToggle = el.querySelector("#anima-keep-session");
     if (localStorage.getItem("anima_keep_session") === null) {
         localStorage.setItem("anima_keep_session", "false");
@@ -254,7 +274,7 @@ export function attachBrowserEvents({
                 await api.fetchApi("/anima/fullet_prompts?limit=1&offset=0&force=1");
                 await render();
             } else {
-                const resp = await api.fetchApi("/anima/update", { method: "POST", headers: localHeaders() });
+                const resp = await api.fetchApi(updateStylesUrl(), { method: "POST", headers: localHeaders() });
                 const res = await resp.json();
                 if (res.success) {
                     dataReset();
@@ -279,10 +299,14 @@ export function attachBrowserEvents({
     const updateBtn = el.querySelector("#anima-update-styles");
     updateBtn.addEventListener("click", async () => {
         if (updateBtn.classList.contains("disabled")) return;
-        updateBtn.innerHTML = "Updating...";
+        const category = getCategory?.();
+        const indexingAnimadex = localStorage.getItem("anima_animadex_enabled") === "true"
+            || category === "animadex-styles"
+            || category === "animadex-characters";
+        updateBtn.innerHTML = indexingAnimadex ? "Indexing..." : "Updating...";
         updateBtn.classList.add("disabled");
         try {
-            const resp = await api.fetchApi("/anima/update", { method: "POST", headers: localHeaders() });
+            const resp = await api.fetchApi(updateStylesUrl(), { method: "POST", headers: localHeaders() });
             const res = await resp.json();
             if (res.success) {
                 dataReset();
@@ -312,6 +336,18 @@ export function attachBrowserEvents({
 
     el.querySelector("#anima-cat-all").addEventListener("click", () => {
         setCategory("all");
+        setCategoryTabs();
+        render();
+    });
+
+    el.querySelector("#anima-cat-animadex-styles").addEventListener("click", () => {
+        setCategory("animadex-styles");
+        setCategoryTabs();
+        render();
+    });
+
+    el.querySelector("#anima-cat-animadex-characters").addEventListener("click", () => {
+        setCategory("animadex-characters");
         setCategoryTabs();
         render();
     });

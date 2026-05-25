@@ -4,9 +4,13 @@
             <div class="window">
                 <div class="hdr">
                     <span class="hdr-title" style="margin-right:4px">Anima Style Explorer</span>
-                    <button class="hdr-btn-txt" id="anima-cat-all" style="margin-left:8px; opacity:1;">All Styles</button>
-                    <button class="hdr-btn-txt" id="anima-cat-fullet" style="opacity:0.5;">Fullet Prompts</button>
-                    <button class="hdr-btn-txt" id="anima-cat-favorites" style="opacity:0.5;">Favorites</button>
+                    <div class="hdr-tabs">
+                        <button class="hdr-btn-txt" id="anima-cat-all" style="opacity:1;">All Styles</button>
+                        <button class="hdr-btn-txt" id="anima-cat-animadex-styles" style="opacity:0.5;">Animadex Styles</button>
+                        <button class="hdr-btn-txt" id="anima-cat-animadex-characters" style="opacity:0.5;">Characters</button>
+                        <button class="hdr-btn-txt" id="anima-cat-fullet" style="opacity:0.5;">Fullet Prompts</button>
+                        <button class="hdr-btn-txt" id="anima-cat-favorites" style="opacity:0.5;">Favorites</button>
+                    </div>
                     <select class="hdr-select" style="margin-left:8px">
                         <option value="works">Popularity</option>
                         <option value="uniqueness">Uniqueness</option>
@@ -31,6 +35,10 @@
                                 <label class="hdr-settings-option" for="anima-keep-session">
                                     <input type="checkbox" id="anima-keep-session" />
                                     <span>Keep key after restart</span>
+                                </label>
+                                <label class="hdr-settings-option" for="anima-animadex-source" title="Also mix Animadex entries into All Styles. The Animadex tabs are always available when the index exists.">
+                                    <input type="checkbox" id="anima-animadex-source" />
+                                    <span>Show Animadex in All Styles</span>
                                 </label>
                                 <button class="hdr-btn-txt hdr-settings-item" id="anima-update-styles">Update Styles</button>
                                 <button class="hdr-btn-txt hdr-settings-item" id="anima-dl-images">Download Previews</button>
@@ -119,7 +127,9 @@
                     <span class="ftr-count"> | </span>
                     <span class="ftr-count">Node created by <a href="https://github.com/fulletLab" target="_blank" style="color:#d0d0e0;text-decoration:none;font-weight:600">fulletLab</a></span>
                     <div class="ftr-gap"></div>
-                    <a class="ftr-link" href="${siteBase}" target="_blank" rel="noopener">thetacursed.github.io/Anima-Style-Explorer -&gt;</a>
+                    <a class="ftr-link" href="${siteBase}" target="_blank" rel="noopener">Anima assets -&gt;</a>
+                    <a class="ftr-link" href="https://animadex.net/?mode=artists" target="_blank" rel="noopener">Animadex styles -&gt;</a>
+                    <a class="ftr-link" href="https://animadex.net/?mode=characters" target="_blank" rel="noopener">Characters -&gt;</a>
                 </div>
             </div>
     `;

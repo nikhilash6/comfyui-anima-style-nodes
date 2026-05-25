@@ -158,13 +158,29 @@ export const Browser = (() => {
         };
     }
 
+    function _isAnimadexCategory(value = category) {
+        return value === "animadex-styles" || value === "animadex-characters";
+    }
+
+    function _animadexKindForCategory(value = category) {
+        if (value === "animadex-styles") return "artist";
+        if (value === "animadex-characters") return "character";
+        return "";
+    }
+
+    function _isSortableCategory(value = category) {
+        return value === "all" || _isAnimadexCategory(value);
+    }
+
     function _setCategoryTabs() {
         if (!el) return;
         el.querySelector("#anima-cat-all").style.opacity = category === "all" ? "1" : "0.5";
+        el.querySelector("#anima-cat-animadex-styles").style.opacity = category === "animadex-styles" ? "1" : "0.5";
+        el.querySelector("#anima-cat-animadex-characters").style.opacity = category === "animadex-characters" ? "1" : "0.5";
         el.querySelector("#anima-cat-fullet").style.opacity = category === "fullet" ? "1" : "0.5";
         el.querySelector("#anima-cat-favorites").style.opacity = category === "favorites" ? "1" : "0.5";
         const sortSelect = el.querySelector(".hdr-select");
-        if (sortSelect) sortSelect.disabled = category !== "all";
+        if (sortSelect) sortSelect.disabled = !_isSortableCategory();
     }
 
     function _detachFulletScrollHandler() {
@@ -745,6 +761,7 @@ export const Browser = (() => {
                 if (isFulletLike(item)) {
                     return String(item?.fullImageUrl || _getFulletFullImageUrl(item) || "");
                 }
+                if (item?.img_url) return String(item.img_url || "");
                 return thumbUrl(item, false);
             },
             getTitle: (item) => {
@@ -866,11 +883,19 @@ export const Browser = (() => {
 
         const id = ++_renderId;
         grid.innerHTML = `<div class="anima-empty"><div class="anima-spinner"></div><span>Loading styles...</span></div>`;
-        const full = await Data.all();
+        const animadexKind = _animadexKindForCategory();
+        const full = animadexKind
+            ? await Data.animadex(animadexKind)
+            : await Data.all();
         if (id !== _renderId) return;
 
         const list = buildStyleList(full, { sort, filter });
-        countEl.textContent = `${list.length} styles`;
+        const countLabel = category === "animadex-styles"
+            ? "Animadex styles"
+            : category === "animadex-characters"
+                ? "characters"
+                : "styles";
+        countEl.textContent = `${list.length} ${countLabel}`;
         _lastList = list.map((item) => (isFulletLike(item)
             ? { ...item, displayImageUrl: _getFulletDisplayImageUrl(item), fullImageUrl: _getFulletFullImageUrl(item) }
             : item));

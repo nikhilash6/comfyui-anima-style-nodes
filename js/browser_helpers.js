@@ -57,6 +57,11 @@ export function localFavoriteFromStyle(artist) {
         works,
         uniqueness_score: uniqueness,
         name: String(artist?.name || "").trim(),
+        source: String(artist?.source || "").trim(),
+        source_kind: String(artist?.source_kind || "").trim(),
+        slug: String(artist?.slug || "").trim(),
+        thumb_url: String(artist?.thumb_url || "").trim(),
+        img_url: String(artist?.img_url || "").trim(),
         addedAt: new Date().toISOString(),
         localPreviewCached: !!artist?.localPreviewCached,
     };

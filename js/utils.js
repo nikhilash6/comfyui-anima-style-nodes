@@ -4,6 +4,16 @@ import { CDN_BASE } from "./config.js";
 export function thumbUrl(artist, useCustom = false) {
     if (!artist) return "";
     const id = artist.id ?? "";
+
+    const direct = String(
+        artist.thumb_url
+        || artist.thumbnailUrl
+        || artist.imageUrl
+        || artist.image
+        || ""
+    ).trim();
+    if (direct) return direct;
+
     if (!id) return "";
 
     if (useCustom) {
